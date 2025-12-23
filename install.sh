@@ -32,6 +32,7 @@ fi
 
 APP_DIR="/opt/samureye-cloud"
 APP_USER="samureye"
+REPO_URL="https://raw.githubusercontent.com/GruppenIT/SamurEyeConsole/main"
 
 log_info "Starting SamurEye Cloud Platform installation..."
 
@@ -60,12 +61,20 @@ if ! id "$APP_USER" &>/dev/null; then
 fi
 
 log_info "Creating application directory..."
+rm -rf $APP_DIR
 mkdir -p $APP_DIR
 mkdir -p $APP_DIR/logs
+mkdir -p $APP_DIR/templates
+mkdir -p $APP_DIR/static
 
 log_info "Setting up PostgreSQL database..."
-sudo -u postgres psql -c "CREATE USER samureye WITH PASSWORD 'samureye_secure_password_change_me';" 2>/dev/null || log_warn "Database user already exists"
-sudo -u postgres psql -c "CREATE DATABASE samureye_cloud OWNER samureye;" 2>/dev/null || log_warn "Database already exists"
+systemctl start postgresql
+systemctl enable postgresql
+
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS samureye_cloud;" 2>/dev/null || true
+sudo -u postgres psql -c "DROP USER IF EXISTS samureye;" 2>/dev/null || true
+sudo -u postgres psql -c "CREATE USER samureye WITH PASSWORD 'samureye_secure_password_change_me';"
+sudo -u postgres psql -c "CREATE DATABASE samureye_cloud OWNER samureye;"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE samureye_cloud TO samureye;"
 
 log_info "Creating Python virtual environment..."
@@ -77,28 +86,30 @@ pip install --upgrade pip
 pip install flask flask-sqlalchemy flask-login psycopg2-binary gunicorn python-dotenv requests werkzeug
 
 log_info "Downloading application files from GitHub..."
-REPO_URL="https://raw.githubusercontent.com/GruppenIT/SamurEyeConsole/main"
 curl -sSL "$REPO_URL/app.py" -o $APP_DIR/app.py
 curl -sSL "$REPO_URL/models.py" -o $APP_DIR/models.py
 
-mkdir -p $APP_DIR/templates
 for template in base.html login.html dashboard.html contracts.html contract_form.html contract_view.html appliance_form.html appliance_view.html; do
     curl -sSL "$REPO_URL/templates/$template" -o $APP_DIR/templates/$template
 done
 
 log_info "Creating environment configuration..."
-cat > $APP_DIR/.env << EOF
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
+
+cat > $APP_DIR/.env << ENVEOF
+SECRET_KEY=$SECRET_KEY
 DATABASE_URL=postgresql://samureye:samureye_secure_password_change_me@localhost/samureye_cloud
 FLASK_ENV=production
-EOF
+ADMIN_PASSWORD=$ADMIN_PASSWORD
+ENVEOF
 
 log_info "Setting file permissions..."
 chown -R $APP_USER:$APP_USER $APP_DIR
 chmod 600 $APP_DIR/.env
 
 log_info "Creating systemd service..."
-cat > /etc/systemd/system/samureye-cloud.service << EOF
+cat > /etc/systemd/system/samureye-cloud.service << SERVICEEOF
 [Unit]
 Description=SamurEye Cloud Platform
 After=network.target postgresql.service
@@ -116,31 +127,31 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SERVICEEOF
 
 log_info "Configuring Nginx..."
-cat > /etc/nginx/sites-available/samureye-cloud << EOF
+cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
 server {
     listen 80;
-    server_name app.samureye.com.br;
+    server_name app.samureye.com.br _;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_connect_timeout 300;
         proxy_send_timeout 300;
         proxy_read_timeout 300;
     }
 
     location /static {
-        alias $APP_DIR/static;
+        alias /opt/samureye-cloud/static;
         expires 1d;
     }
 }
-EOF
+NGINXEOF
 
 ln -sf /etc/nginx/sites-available/samureye-cloud /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
@@ -156,36 +167,45 @@ ufw --force enable
 
 log_info "Starting services..."
 systemctl daemon-reload
-systemctl enable postgresql
-systemctl start postgresql
 systemctl enable samureye-cloud
-systemctl start samureye-cloud
-systemctl enable nginx
+systemctl stop samureye-cloud 2>/dev/null || true
 systemctl restart nginx
 
 log_info "Initializing database..."
 cd $APP_DIR
 source venv/bin/activate
-export $(cat .env | xargs)
-python3 -c "from app import init_db; init_db()"
+export SECRET_KEY=$SECRET_KEY
+export DATABASE_URL=postgresql://samureye:samureye_secure_password_change_me@localhost/samureye_cloud
+export ADMIN_PASSWORD=$ADMIN_PASSWORD
+python3 -c "from app import app, db, init_db; app.app_context().push(); db.create_all(); init_db()"
 
-log_info ""
-log_info "=============================================="
-log_info "  SamurEye Cloud Platform installed!"
-log_info "=============================================="
-log_info ""
-log_info "Application URL: http://app.samureye.com.br"
-log_info "Default login: admin@samureye.com.br"
-log_info ""
-log_info "IMPORTANT: Check the application logs for the generated admin password!"
-log_info "Or set ADMIN_PASSWORD in the .env file before first run."
-log_info ""
-log_info "To enable HTTPS, run:"
-log_info "  sudo certbot --nginx -d app.samureye.com.br"
-log_info ""
-log_info "Application logs: $APP_DIR/logs/"
-log_info "Configuration: $APP_DIR/.env"
-log_info ""
-log_info "Database credentials are in $APP_DIR/.env"
-log_info "CHANGE THE DATABASE PASSWORD IN PRODUCTION!"
-log_info ""
+log_info "Starting application service..."
+systemctl start samureye-cloud
+
+sleep 3
+if systemctl is-active --quiet samureye-cloud; then
+    log_info "Service started successfully!"
+else
+    log_error "Service failed to start. Check logs with: journalctl -u samureye-cloud -n 50"
+fi
+
+echo ""
+echo -e "${GREEN}=============================================="
+echo -e "  SamurEye Cloud Platform installed!"
+echo -e "==============================================${NC}"
+echo ""
+echo -e "Application URL: http://app.samureye.com.br"
+echo -e "              or http://$(hostname -I | awk '{print $1}')"
+echo ""
+echo -e "Default login: admin@samureye.com.br"
+echo -e "Password: ${YELLOW}$ADMIN_PASSWORD${NC}"
+echo ""
+echo -e "To enable HTTPS, run:"
+echo -e "  sudo certbot --nginx -d app.samureye.com.br"
+echo ""
+echo -e "Application logs: $APP_DIR/logs/"
+echo -e "Configuration: $APP_DIR/.env"
+echo ""
+echo -e "${YELLOW}IMPORTANT: Save the admin password above!${NC}"
+echo -e "${YELLOW}Change the database password in production!${NC}"
+echo ""
