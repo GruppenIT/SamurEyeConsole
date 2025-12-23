@@ -74,8 +74,9 @@ systemctl enable postgresql
 
 sudo -u postgres psql -c "DROP DATABASE IF EXISTS samureye_cloud;" 2>/dev/null || true
 sudo -u postgres psql -c "DROP USER IF EXISTS samureye;" 2>/dev/null || true
-sudo -u postgres psql -c "CREATE USER samureye WITH PASSWORD 'samureye_secure_password_change_me';"
-sudo -u postgres psql -c "CREATE DATABASE samureye_cloud OWNER samureye;"
+sudo -u postgres psql -c "CREATE USER samureye WITH PASSWORD 'samureye_secure_password_change_me';" 2>/dev/null || log_warn "User already exists, updating password..."
+sudo -u postgres psql -c "ALTER USER samureye WITH PASSWORD 'samureye_secure_password_change_me';" 2>/dev/null || true
+sudo -u postgres psql -c "CREATE DATABASE samureye_cloud OWNER samureye;" 2>/dev/null || log_warn "Database already exists"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE samureye_cloud TO samureye;"
 
 log_info "Creating Python virtual environment..."
