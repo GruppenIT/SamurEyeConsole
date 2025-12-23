@@ -60,7 +60,6 @@ if ! id "$APP_USER" &>/dev/null; then
 fi
 
 log_info "Creating application directory..."
-rm -rf $APP_DIR
 mkdir -p $APP_DIR
 mkdir -p $APP_DIR/logs
 mkdir -p $APP_DIR/templates
@@ -130,7 +129,46 @@ WantedBy=multi-user.target
 SERVICEEOF
 
 log_info "Configuring Nginx..."
-cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
+DOMAIN="app.samureye.com.br"
+
+if [ -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+    log_info "SSL certificate found! Configuring Nginx with HTTPS..."
+    cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
+server {
+    listen 80;
+    server_name app.samureye.com.br _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name app.samureye.com.br _;
+
+    ssl_certificate /etc/letsencrypt/live/app.samureye.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.samureye.com.br/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+        proxy_read_timeout 300;
+    }
+
+    location /static {
+        alias /opt/samureye-cloud/static;
+        expires 1d;
+    }
+}
+NGINXEOF
+else
+    log_info "No SSL certificate found. Configuring Nginx with HTTP only..."
+    cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
 server {
     listen 80;
     server_name app.samureye.com.br _;
@@ -152,6 +190,7 @@ server {
     }
 }
 NGINXEOF
+fi
 
 ln -sf /etc/nginx/sites-available/samureye-cloud /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
@@ -190,8 +229,6 @@ else
 fi
 
 log_info "Creating SSL setup script..."
-DOMAIN="app.samureye.com.br"
-
 cat > /opt/samureye-cloud/setup-ssl.sh << 'SSLSCRIPT'
 #!/bin/bash
 DOMAIN="app.samureye.com.br"
