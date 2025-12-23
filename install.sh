@@ -76,10 +76,15 @@ log_info "Installing Python dependencies..."
 pip install --upgrade pip
 pip install flask flask-sqlalchemy flask-login psycopg2-binary gunicorn python-dotenv requests werkzeug
 
-log_info "Copying application files..."
-cp app.py $APP_DIR/
-cp models.py $APP_DIR/
-cp -r templates $APP_DIR/
+log_info "Downloading application files from GitHub..."
+REPO_URL="https://raw.githubusercontent.com/GruppenIT/SamurEyeConsole/main"
+curl -sSL "$REPO_URL/app.py" -o $APP_DIR/app.py
+curl -sSL "$REPO_URL/models.py" -o $APP_DIR/models.py
+
+mkdir -p $APP_DIR/templates
+for template in base.html login.html dashboard.html contracts.html contract_form.html contract_view.html appliance_form.html appliance_view.html; do
+    curl -sSL "$REPO_URL/templates/$template" -o $APP_DIR/templates/$template
+done
 
 log_info "Creating environment configuration..."
 cat > $APP_DIR/.env << EOF
