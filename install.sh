@@ -53,7 +53,8 @@ apt-get install -y \
     git \
     curl \
     wget \
-    ufw
+    ufw \
+    dnsutils
 
 log_info "Creating application user..."
 if ! id "$APP_USER" &>/dev/null; then
@@ -189,19 +190,37 @@ else
     log_error "Service failed to start. Check logs with: journalctl -u samureye-cloud -n 50"
 fi
 
+log_info "Configuring SSL certificate with Let's Encrypt..."
+DOMAIN="app.samureye.com.br"
+
+if host $DOMAIN > /dev/null 2>&1; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    DOMAIN_IP=$(dig +short $DOMAIN | tail -1)
+    
+    if [ "$SERVER_IP" = "$DOMAIN_IP" ] || [ -n "$DOMAIN_IP" ]; then
+        log_info "Requesting SSL certificate for $DOMAIN..."
+        certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@samureye.com.br --redirect || {
+            log_warn "Certbot failed. You can run manually later: sudo certbot --nginx -d $DOMAIN"
+        }
+    else
+        log_warn "Domain $DOMAIN does not point to this server ($SERVER_IP)."
+        log_warn "Configure DNS first, then run: sudo certbot --nginx -d $DOMAIN"
+    fi
+else
+    log_warn "Could not resolve $DOMAIN. DNS may not be configured yet."
+    log_warn "After configuring DNS, run: sudo certbot --nginx -d $DOMAIN"
+fi
+
 echo ""
 echo -e "${GREEN}=============================================="
 echo -e "  SamurEye Cloud Platform installed!"
 echo -e "==============================================${NC}"
 echo ""
-echo -e "Application URL: http://app.samureye.com.br"
+echo -e "Application URL: https://app.samureye.com.br"
 echo -e "              or http://$(hostname -I | awk '{print $1}')"
 echo ""
 echo -e "Default login: admin@samureye.com.br"
 echo -e "Password: ${YELLOW}$ADMIN_PASSWORD${NC}"
-echo ""
-echo -e "To enable HTTPS, run:"
-echo -e "  sudo certbot --nginx -d app.samureye.com.br"
 echo ""
 echo -e "Application logs: $APP_DIR/logs/"
 echo -e "Configuration: $APP_DIR/.env"
