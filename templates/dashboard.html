@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - SamurEye Cloud{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Dashboard</h4>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="stat-value">{{ contracts|length }}</div>
+                <div class="stat-label">Contratos Ativos</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="stat-value">{{ total_appliances }}</div>
+                <div class="stat-label">Total de Appliances</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="stat-value">{{ active_appliances }}</div>
+                <div class="stat-label">Appliances Online</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-text me-2"></i>Contratos Recentes</span>
+        <a href="{{ url_for('new_contract') }}" class="btn btn-samureye btn-sm">
+            <i class="bi bi-plus-lg"></i> Novo Contrato
+        </a>
+    </div>
+    <div class="card-body">
+        {% if contracts %}
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Email</th>
+                    <th>Vigencia</th>
+                    <th>Appliances</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for contract in contracts[:10] %}
+                <tr>
+                    <td><strong>{{ contract.client_name }}</strong></td>
+                    <td>{{ contract.contact_email }}</td>
+                    <td>{{ contract.start_date.strftime('%d/%m/%Y') }} - {{ contract.end_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ contract.appliances.count() }}</td>
+                    <td>
+                        {% if contract.is_valid %}
+                            <span class="status-badge status-active">Ativo</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('view_contract', id=contract.id) }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted text-center py-4">Nenhum contrato cadastrado ainda.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

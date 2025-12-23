@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if appliance else 'Novo' }} Appliance - SamurEye Cloud{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('contracts') }}">Contratos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('view_contract', id=contract.id) }}">{{ contract.client_name }}</a></li>
+        <li class="breadcrumb-item active">{{ 'Editar' if appliance else 'Novo' }} Appliance</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-hdd-stack me-2"></i>{{ 'Editar' if appliance else 'Novo' }} Appliance
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Nome do Appliance *</label>
+                        <input type="text" name="name" class="form-control" required 
+                               value="{{ appliance.name if appliance else '' }}"
+                               placeholder="Ex: SamurEye-001">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descricao</label>
+                        <textarea name="description" class="form-control" rows="3"
+                                  placeholder="Descricao opcional do appliance">{{ appliance.description if appliance else '' }}</textarea>
+                    </div>
+                    {% if appliance %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                   {{ 'checked' if appliance.is_active else '' }}>
+                            <label class="form-check-label" for="is_active">Appliance Ativo</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-samureye">
+                            <i class="bi bi-check-lg"></i> Salvar
+                        </button>
+                        <a href="{{ url_for('view_contract', id=contract.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}{{ appliance.name }} - SamurEye Cloud{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('contracts') }}">Contratos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('view_contract', id=appliance.contract.id) }}">{{ appliance.contract.client_name }}</a></li>
+        <li class="breadcrumb-item active">{{ appliance.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1">{{ appliance.name }}</h4>
+        <small class="text-muted">{{ appliance.description or 'Sem descricao' }}</small>
+    </div>
+    <div>
+        {% if appliance.is_active %}
+            <span class="status-badge status-active me-2">Ativo</span>
+        {% else %}
+            <span class="status-badge status-inactive me-2">Desativado</span>
+        {% endif %}
+        <a href="{{ url_for('edit_appliance', id=appliance.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-key me-2"></i>Token de Autenticacao
+            </div>
+            <div class="card-body">
+                <div class="token-display mb-3">{{ appliance.token }}</div>
+                <form action="{{ url_for('reset_appliance_token', id=appliance.id) }}" method="POST" class="d-inline"
+                      onsubmit="return confirm('Tem certeza? O appliance precisara ser reconfigurado com o novo token.')">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-arrow-clockwise"></i> Resetar Token
+                    </button>
+                </form>
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyToken()">
+                    <i class="bi bi-clipboard"></i> Copiar
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>Informacoes
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">Cliente:</td>
+                        <td>{{ appliance.contract.client_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Contrato:</td>
+                        <td>{{ appliance.contract.start_date.strftime('%d/%m/%Y') }} - {{ appliance.contract.end_date.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Ultima Atividade:</td>
+                        <td>
+                            {% if appliance.last_seen %}
+                                {{ appliance.last_seen.strftime('%d/%m/%Y %H:%M:%S') }}
+                            {% else %}
+                                <span class="text-muted">Nunca conectou</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Criado em:</td>
+                        <td>{{ appliance.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if metrics %}
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-graph-up me-2"></i>Metricas de Saude (Ultimas 24h)
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h5 class="mb-1">{{ "%.1f"|format(metrics[-1].cpu_percent or 0) }}%</h5>
+                    <small class="text-muted">CPU</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h5 class="mb-1">{{ "%.1f"|format(metrics[-1].memory_percent or 0) }}%</h5>
+                    <small class="text-muted">Memoria</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h5 class="mb-1">{{ "%.1f"|format(metrics[-1].disk_percent or 0) }}%</h5>
+                    <small class="text-muted">Disco</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h5 class="mb-1">{{ "%.2f"|format((metrics[-1].network_bytes_recv_rate or 0) / 1024 / 1024) }} MB/s</h5>
+                    <small class="text-muted">Rede (Recv)</small>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <canvas id="cpuMemChart" height="200"></canvas>
+            </div>
+            <div class="col-md-6">
+                <canvas id="networkChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-door-open me-2"></i>Logs de Login (SSH/GUI)
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if login_logs %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Tipo</th>
+                            <th>Usuario</th>
+                            <th>IP</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in login_logs %}
+                        <tr>
+                            <td>{{ log.timestamp.strftime('%d/%m %H:%M') }}</td>
+                            <td><span class="badge bg-secondary">{{ log.login_type }}</span></td>
+                            <td>{{ log.username or '-' }}</td>
+                            <td>{{ log.source_ip or '-' }}</td>
+                            <td>
+                                {% if log.success %}
+                                    <span class="text-success"><i class="bi bi-check-circle"></i></span>
+                                {% else %}
+                                    <span class="text-danger"><i class="bi bi-x-circle"></i></span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-3">Nenhum log de login registrado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-shield-exclamation me-2"></i>Metadados de Ameacas
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if threats %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Tipo</th>
+                            <th>Severidade</th>
+                            <th>Origem</th>
+                            <th>Qtd</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for threat in threats %}
+                        <tr>
+                            <td>{{ threat.timestamp.strftime('%d/%m %H:%M') }}</td>
+                            <td>{{ threat.threat_type or '-' }}</td>
+                            <td>
+                                {% if threat.severity == 'critical' %}
+                                    <span class="badge bg-danger">Critico</span>
+                                {% elif threat.severity == 'high' %}
+                                    <span class="badge bg-warning">Alto</span>
+                                {% elif threat.severity == 'medium' %}
+                                    <span class="badge bg-info">Medio</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Baixo</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ threat.source_ip or '-' }}</td>
+                            <td>{{ threat.count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-3">Nenhum metadado de ameaca registrado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-end">
+    <form action="{{ url_for('delete_appliance', id=appliance.id) }}" method="POST" class="d-inline"
+          onsubmit="return confirm('Tem certeza que deseja remover este appliance? Todos os dados serao perdidos.')">
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash"></i> Remover Appliance
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyToken() {
+    const token = "{{ appliance.token }}";
+    navigator.clipboard.writeText(token).then(() => {
+        alert('Token copiado!');
+    });
+}
+
+{% if metrics %}
+const labels = [{% for m in metrics %}"{{ m.timestamp.strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+
+new Chart(document.getElementById('cpuMemChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'CPU %',
+            data: [{% for m in metrics %}{{ m.cpu_percent or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#e94560',
+            backgroundColor: 'rgba(233, 69, 96, 0.1)',
+            fill: true,
+            tension: 0.3
+        }, {
+            label: 'Memoria %',
+            data: [{% for m in metrics %}{{ m.memory_percent or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#0f3460',
+            backgroundColor: 'rgba(15, 52, 96, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: { y: { beginAtZero: true, max: 100 } }
+    }
+});
+
+new Chart(document.getElementById('networkChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Recv (MB/s)',
+            data: [{% for m in metrics %}{{ ((m.network_bytes_recv_rate or 0) / 1024 / 1024)|round(2) }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            fill: true,
+            tension: 0.3
+        }, {
+            label: 'Sent (MB/s)',
+            data: [{% for m in metrics %}{{ ((m.network_bytes_sent_rate or 0) / 1024 / 1024)|round(2) }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#17a2b8',
+            backgroundColor: 'rgba(23, 162, 184, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

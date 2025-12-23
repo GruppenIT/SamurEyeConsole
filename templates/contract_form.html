@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if contract else 'Novo' }} Contrato - SamurEye Cloud{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-text me-2"></i>{{ 'Editar' if contract else 'Novo' }} Contrato
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Nome do Cliente *</label>
+                        <input type="text" name="client_name" class="form-control" required 
+                               value="{{ contract.client_name if contract else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email de Contato *</label>
+                        <input type="email" name="contact_email" class="form-control" required
+                               value="{{ contract.contact_email if contract else '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Data de Inicio *</label>
+                            <input type="date" name="start_date" class="form-control" required
+                                   value="{{ contract.start_date.strftime('%Y-%m-%d') if contract else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Data de Termino *</label>
+                            <input type="date" name="end_date" class="form-control" required
+                                   value="{{ contract.end_date.strftime('%Y-%m-%d') if contract else '' }}">
+                        </div>
+                    </div>
+                    {% if contract %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                   {{ 'checked' if contract.is_active else '' }}>
+                            <label class="form-check-label" for="is_active">Contrato Ativo</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-samureye">
+                            <i class="bi bi-check-lg"></i> Salvar
+                        </button>
+                        <a href="{{ url_for('contracts') }}" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

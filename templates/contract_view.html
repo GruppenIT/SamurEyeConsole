@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{{ contract.client_name }} - SamurEye Cloud{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('contracts') }}">Contratos</a></li>
+        <li class="breadcrumb-item active">{{ contract.client_name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1">{{ contract.client_name }}</h4>
+        <small class="text-muted">{{ contract.contact_email }}</small>
+    </div>
+    <div>
+        {% if contract.is_valid %}
+            <span class="status-badge status-active me-2">Ativo</span>
+        {% else %}
+            <span class="status-badge status-inactive me-2">Inativo</span>
+        {% endif %}
+        <a href="{{ url_for('edit_contract', id=contract.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>Informacoes do Contrato
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" width="40%">Cliente:</td>
+                        <td><strong>{{ contract.client_name }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Email:</td>
+                        <td>{{ contract.contact_email }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Inicio:</td>
+                        <td>{{ contract.start_date.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Termino:</td>
+                        <td>{{ contract.end_date.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Criado em:</td>
+                        <td>{{ contract.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-hdd-stack me-2"></i>Appliances ({{ contract.appliances.count() }})</span>
+        <a href="{{ url_for('new_appliance', contract_id=contract.id) }}" class="btn btn-samureye btn-sm">
+            <i class="bi bi-plus-lg"></i> Novo Appliance
+        </a>
+    </div>
+    <div class="card-body">
+        {% if contract.appliances.count() > 0 %}
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Descricao</th>
+                    <th>Ultima Atividade</th>
+                    <th>Status</th>
+                    <th>Acoes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appliance in contract.appliances %}
+                <tr>
+                    <td><strong>{{ appliance.name }}</strong></td>
+                    <td>{{ appliance.description or '-' }}</td>
+                    <td>
+                        {% if appliance.last_seen %}
+                            {{ appliance.last_seen.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            <span class="text-muted">Nunca conectou</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if appliance.is_active %}
+                            {% if appliance.last_seen and (now() - appliance.last_seen).total_seconds() < 600 %}
+                                <span class="status-badge status-online">Online</span>
+                            {% else %}
+                                <span class="status-badge status-offline">Offline</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="status-badge status-inactive">Desativado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('view_appliance', id=appliance.id) }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a href="{{ url_for('edit_appliance', id=appliance.id) }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted text-center py-4">Nenhum appliance cadastrado para este contrato.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
