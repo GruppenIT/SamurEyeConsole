@@ -1,0 +1,40 @@
+root@templateubuntu:~# curl -sSL https://raw.githubusercontent.com/GruppenIT/SamurEyeConsole/main/install.sh | sudo bash
+[INFO] Starting SamurEye Cloud Platform installation...
+[INFO] Updating system packages...
+Hit:1 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Calculating upgrade... Done
+The following packages have been kept back:
+  linux-generic linux-headers-generic linux-image-generic sosreport
+0 upgraded, 0 newly installed, 0 to remove and 4 not upgraded.
+[INFO] Installing system dependencies...
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+python3 is already the newest version (3.12.3-0ubuntu2.1).
+python3-venv is already the newest version (3.12.3-0ubuntu2.1).
+python3-pip is already the newest version (24.0+dfsg-1ubuntu1.3).
+postgresql is already the newest version (16+257build1.1).
+postgresql-contrib is already the newest version (16+257build1.1).
+nginx is already the newest version (1.24.0-2ubuntu7.5).
+certbot is already the newest version (2.9.0-1).
+python3-certbot-nginx is already the newest version (2.9.0-1).
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+curl is already the newest version (8.5.0-2ubuntu10.6).
+wget is already the newest version (1.21.4-1ubuntu4.1).
+ufw is already the newest version (0.36.2-6).
+dnsutils is already the newest version (1:9.18.39-0ubuntu0.24.04.2).
+0 upgraded, 0 newly installed, 0 to remove and 4 not upgraded.
+[INFO] Creating application user...
+[INFO] Creating application directory...
+[INFO] Setting up PostgreSQL database...
+Synchronizing state of postgresql.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable postgresql
+ERROR:  role "samureye" already exists
+root@templateubuntu:~#
