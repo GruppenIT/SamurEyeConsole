@@ -32,7 +32,6 @@ fi
 
 APP_DIR="/opt/samureye-cloud"
 APP_USER="samureye"
-PYTHON_VERSION="3.11"
 
 log_info "Starting SamurEye Cloud Platform installation..."
 
@@ -42,8 +41,8 @@ apt-get upgrade -y
 
 log_info "Installing system dependencies..."
 apt-get install -y \
-    python${PYTHON_VERSION} \
-    python${PYTHON_VERSION}-venv \
+    python3 \
+    python3-venv \
     python3-pip \
     postgresql \
     postgresql-contrib \
@@ -70,7 +69,7 @@ sudo -u postgres psql -c "CREATE DATABASE samureye_cloud OWNER samureye;" 2>/dev
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE samureye_cloud TO samureye;"
 
 log_info "Creating Python virtual environment..."
-python${PYTHON_VERSION} -m venv $APP_DIR/venv
+python3 -m venv $APP_DIR/venv
 source $APP_DIR/venv/bin/activate
 
 log_info "Installing Python dependencies..."
