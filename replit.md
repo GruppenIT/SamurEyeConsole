@@ -5,7 +5,7 @@ Central management platform for SamurEye appliances - cyber threat assessment co
 
 - Contract and client management
 - Appliance registration with secure token authentication
-- Health metrics monitoring (CPU, memory, disk, network)
+- Health metrics monitoring (CPU, memory, disk, network) with Chart.js visualization
 - SSH and GUI login logs tracking
 - Threat metadata collection
 - License validation for appliances
@@ -75,7 +75,7 @@ sudo bash install_telemetry.sh <TOKEN> [API_URL]
 
 ## Credentials
 - **Admin Login**: admin@samureye.com.br
-- **Default Password**: SamurEye@2024!
+- **Password**: Set via `ADMIN_PASSWORD` environment variable, or auto-generated on first run (check logs)
 
 ## Development
 Run locally with:
@@ -100,3 +100,4 @@ The telemetry service generates `/opt/samureye/license`:
 
 ## Recent Changes
 - 2024-12-23: Initial implementation with full CRUD, API endpoints, and telemetry service
+- 2024-12-23: Security improvement - removed hardcoded password, added Chart.js dashboard visualization
