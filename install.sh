@@ -94,7 +94,7 @@ done
 
 log_info "Creating environment configuration..."
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
-ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
+ADMIN_PASSWORD='P@ssw0rd@.!'
 
 cat > $APP_DIR/.env << ENVEOF
 SECRET_KEY=$SECRET_KEY
