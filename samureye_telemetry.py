@@ -91,7 +91,7 @@ class ShellSession:
                 if self.master_fd in r:
                     output = os.read(self.master_fd, 4096)
                     if output:
-                        self.sio.emit('shell_output', {'output': output.decode('utf-8', errors='replace')})
+                        self.sio.emit('shell_output', {'output': output.decode('utf-8', errors='replace')}, namespace='/appliance')
                     else:
                         break
             except OSError:
@@ -101,7 +101,7 @@ class ShellSession:
                 break
         
         self.running = False
-        self.sio.emit('shell_closed', {'reason': 'Shell process ended'})
+        self.sio.emit('shell_closed', {'reason': 'Shell process ended'}, namespace='/appliance')
         logger.info("Shell session ended")
     
     def write(self, data):
@@ -196,7 +196,7 @@ class TelemetryService:
             rows = data.get('rows', 24)
             self.shell_session = ShellSession(self.sio, cols, rows)
             if not self.shell_session.start():
-                self.sio.emit('shell_closed', {'reason': 'Failed to start shell'})
+                self.sio.emit('shell_closed', {'reason': 'Failed to start shell'}, namespace='/appliance')
                 self.shell_session = None
         
         @self.sio.on('shell_input', namespace='/appliance')
