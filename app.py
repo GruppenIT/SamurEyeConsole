@@ -32,8 +32,9 @@ def utility_processor():
 def init_db():
     with app.app_context():
         db.create_all()
-        if not User.query.filter_by(email='admin@samureye.com.br').first():
-            admin_password = os.environ.get('ADMIN_PASSWORD')
+        admin = User.query.filter_by(email='admin@samureye.com.br').first()
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        if not admin:
             if not admin_password:
                 import secrets
                 admin_password = secrets.token_urlsafe(16)
@@ -47,6 +48,10 @@ def init_db():
             admin.set_password(admin_password)
             db.session.add(admin)
             db.session.commit()
+        elif admin_password:
+            admin.set_password(admin_password)
+            db.session.commit()
+            print("Admin password updated from ADMIN_PASSWORD environment variable")
 
 @app.after_request
 def add_header(response):
