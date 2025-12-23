@@ -189,21 +189,20 @@ else
     log_error "Service failed to start. Check logs with: journalctl -u samureye-cloud -n 50"
 fi
 
-log_info "Configuring SSL certificate with Let's Encrypt (DNS challenge)..."
+log_info "Creating SSL setup script..."
 DOMAIN="app.samureye.com.br"
 
-log_info "Requesting SSL certificate for $DOMAIN using DNS challenge..."
-log_info "You will need to create a TXT record in your DNS."
+cat > /opt/samureye-cloud/setup-ssl.sh << 'SSLSCRIPT'
+#!/bin/bash
+DOMAIN="app.samureye.com.br"
+echo "Requesting SSL certificate using DNS challenge..."
+echo "You will need to create a TXT record in your DNS when prompted."
 echo ""
-certbot certonly --manual --preferred-challenges dns -d $DOMAIN --agree-tos --email admin@samureye.com.br || {
-    log_warn "Certbot DNS challenge failed or was skipped."
-    log_warn "To get SSL certificate later, run:"
-    log_warn "  sudo certbot certonly --manual --preferred-challenges dns -d $DOMAIN"
-    log_warn "Then configure Nginx with the certificate."
-}
+
+certbot certonly --manual --preferred-challenges dns -d $DOMAIN --agree-tos --email admin@samureye.com.br
 
 if [ -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
-    log_info "SSL certificate obtained! Configuring Nginx for HTTPS..."
+    echo "SSL certificate obtained! Configuring Nginx for HTTPS..."
     cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
 server {
     listen 80;
@@ -238,19 +237,27 @@ server {
 }
 NGINXEOF
     nginx -t && systemctl restart nginx
-    log_info "HTTPS configured successfully!"
+    echo "HTTPS configured successfully!"
+else
+    echo "SSL certificate not found. Please try again."
 fi
+SSLSCRIPT
+
+chmod +x /opt/samureye-cloud/setup-ssl.sh
+log_info "SSL setup script created at /opt/samureye-cloud/setup-ssl.sh"
 
 echo ""
 echo -e "${GREEN}=============================================="
 echo -e "  SamurEye Cloud Platform installed!"
 echo -e "==============================================${NC}"
 echo ""
-echo -e "Application URL: https://app.samureye.com.br"
-echo -e "              or http://$(hostname -I | awk '{print $1}')"
+echo -e "Application URL: http://$(hostname -I | awk '{print $1}')"
 echo ""
 echo -e "Default login: admin@samureye.com.br"
 echo -e "Password: ${YELLOW}$ADMIN_PASSWORD${NC}"
+echo ""
+echo -e "${YELLOW}To enable HTTPS, run:${NC}"
+echo -e "  sudo /opt/samureye-cloud/setup-ssl.sh"
 echo ""
 echo -e "Application logs: $APP_DIR/logs/"
 echo -e "Configuration: $APP_DIR/.env"
