@@ -330,14 +330,18 @@ def validate_license():
 
 
 @socketio.on('connect', namespace='/appliance')
-def appliance_connect():
-    token = request.args.get('token')
+def appliance_connect(auth):
+    token = auth.get('token') if auth else None
     if not token:
+        token = request.args.get('token')
+    if not token:
+        print("[TUNNEL] Connection rejected: no token provided")
         return False
     
     with app.app_context():
         appliance = Appliance.query.filter_by(token=token, is_active=True).first()
         if not appliance or not appliance.contract.is_valid:
+            print(f"[TUNNEL] Connection rejected: invalid token {token[:8]}...")
             return False
         
         connected_appliances[token] = {
