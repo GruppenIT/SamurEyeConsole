@@ -27,8 +27,18 @@ def init_db():
     with app.app_context():
         db.create_all()
         if not User.query.filter_by(email='admin@samureye.com.br').first():
+            admin_password = os.environ.get('ADMIN_PASSWORD')
+            if not admin_password:
+                import secrets
+                admin_password = secrets.token_urlsafe(16)
+                print(f"\n{'='*60}")
+                print("FIRST RUN: Admin account created")
+                print(f"Email: admin@samureye.com.br")
+                print(f"Generated Password: {admin_password}")
+                print("IMPORTANT: Set ADMIN_PASSWORD env var in production!")
+                print(f"{'='*60}\n")
             admin = User(email='admin@samureye.com.br')
-            admin.set_password('SamurEye@2024!')
+            admin.set_password(admin_password)
             db.session.add(admin)
             db.session.commit()
 
@@ -73,10 +83,14 @@ def dashboard():
     active_appliances = Appliance.query.filter(
         Appliance.last_seen >= datetime.utcnow() - timedelta(minutes=10)
     ).count()
+    
+    recent_metrics = Metric.query.order_by(Metric.timestamp.desc()).limit(50).all()
+    
     return render_template('dashboard.html', 
                          contracts=contracts,
                          total_appliances=total_appliances,
-                         active_appliances=active_appliances)
+                         active_appliances=active_appliances,
+                         recent_metrics=list(reversed(recent_metrics)))
 
 @app.route('/contracts')
 @login_required

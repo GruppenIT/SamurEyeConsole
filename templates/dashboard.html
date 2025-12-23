@@ -31,6 +31,24 @@
     </div>
 </div>
 
+{% if recent_metrics %}
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-graph-up me-2"></i>Metricas de Telemetria (Agregado)
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <canvas id="cpuMemChart" height="200"></canvas>
+            </div>
+            <div class="col-md-6">
+                <canvas id="networkChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-file-earmark-text me-2"></i>Contratos Recentes</span>
@@ -79,4 +97,72 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if recent_metrics %}
+<script>
+const labels = [{% for m in recent_metrics %}"{{ m.timestamp.strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+
+new Chart(document.getElementById('cpuMemChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'CPU %',
+            data: [{% for m in recent_metrics %}{{ m.cpu_percent or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#e94560',
+            backgroundColor: 'rgba(233, 69, 96, 0.1)',
+            fill: true,
+            tension: 0.3
+        }, {
+            label: 'Memoria %',
+            data: [{% for m in recent_metrics %}{{ m.memory_percent or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#0f3460',
+            backgroundColor: 'rgba(15, 52, 96, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { 
+            legend: { position: 'top' },
+            title: { display: true, text: 'CPU e Memoria' }
+        },
+        scales: { y: { beginAtZero: true, max: 100 } }
+    }
+});
+
+new Chart(document.getElementById('networkChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Recv (MB/s)',
+            data: [{% for m in recent_metrics %}{{ ((m.network_bytes_recv_rate or 0) / 1024 / 1024)|round(2) }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            fill: true,
+            tension: 0.3
+        }, {
+            label: 'Sent (MB/s)',
+            data: [{% for m in recent_metrics %}{{ ((m.network_bytes_sent_rate or 0) / 1024 / 1024)|round(2) }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: '#17a2b8',
+            backgroundColor: 'rgba(23, 162, 184, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { 
+            legend: { position: 'top' },
+            title: { display: true, text: 'Trafego de Rede' }
+        },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
