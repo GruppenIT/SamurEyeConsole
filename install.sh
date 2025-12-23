@@ -189,25 +189,56 @@ else
     log_error "Service failed to start. Check logs with: journalctl -u samureye-cloud -n 50"
 fi
 
-log_info "Configuring SSL certificate with Let's Encrypt..."
+log_info "Configuring SSL certificate with Let's Encrypt (DNS challenge)..."
 DOMAIN="app.samureye.com.br"
 
-if host $DOMAIN > /dev/null 2>&1; then
-    SERVER_IP=$(hostname -I | awk '{print $1}')
-    DOMAIN_IP=$(dig +short $DOMAIN | tail -1)
-    
-    if [ "$SERVER_IP" = "$DOMAIN_IP" ] || [ -n "$DOMAIN_IP" ]; then
-        log_info "Requesting SSL certificate for $DOMAIN..."
-        certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@samureye.com.br --redirect || {
-            log_warn "Certbot failed. You can run manually later: sudo certbot --nginx -d $DOMAIN"
-        }
-    else
-        log_warn "Domain $DOMAIN does not point to this server ($SERVER_IP)."
-        log_warn "Configure DNS first, then run: sudo certbot --nginx -d $DOMAIN"
-    fi
-else
-    log_warn "Could not resolve $DOMAIN. DNS may not be configured yet."
-    log_warn "After configuring DNS, run: sudo certbot --nginx -d $DOMAIN"
+log_info "Requesting SSL certificate for $DOMAIN using DNS challenge..."
+log_info "You will need to create a TXT record in your DNS."
+echo ""
+certbot certonly --manual --preferred-challenges dns -d $DOMAIN --agree-tos --email admin@samureye.com.br || {
+    log_warn "Certbot DNS challenge failed or was skipped."
+    log_warn "To get SSL certificate later, run:"
+    log_warn "  sudo certbot certonly --manual --preferred-challenges dns -d $DOMAIN"
+    log_warn "Then configure Nginx with the certificate."
+}
+
+if [ -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+    log_info "SSL certificate obtained! Configuring Nginx for HTTPS..."
+    cat > /etc/nginx/sites-available/samureye-cloud << 'NGINXEOF'
+server {
+    listen 80;
+    server_name app.samureye.com.br _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name app.samureye.com.br _;
+
+    ssl_certificate /etc/letsencrypt/live/app.samureye.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.samureye.com.br/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+        proxy_read_timeout 300;
+    }
+
+    location /static {
+        alias /opt/samureye-cloud/static;
+        expires 1d;
+    }
+}
+NGINXEOF
+    nginx -t && systemctl restart nginx
+    log_info "HTTPS configured successfully!"
 fi
 
 echo ""
