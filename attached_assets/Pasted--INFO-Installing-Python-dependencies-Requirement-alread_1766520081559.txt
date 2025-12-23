@@ -1,0 +1,58 @@
+
+[INFO] Installing Python dependencies...
+Requirement already satisfied: pip in /opt/samureye/venv/lib/python3.12/site-packages (25.3)
+Requirement already satisfied: requests in /opt/samureye/venv/lib/python3.12/site-packages (2.32.5)
+Requirement already satisfied: psutil in /opt/samureye/venv/lib/python3.12/site-packages (7.1.3)
+Collecting websocket-client
+  Downloading websocket_client-1.9.0-py3-none-any.whl.metadata (8.3 kB)
+Collecting python-socketio[client]
+  Downloading python_socketio-5.15.1-py3-none-any.whl.metadata (3.2 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in /opt/samureye/venv/lib/python3.12/site-packages (from requests) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in /opt/samureye/venv/lib/python3.12/site-packages (from requests) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/samureye/venv/lib/python3.12/site-packages (from requests) (2.6.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/samureye/venv/lib/python3.12/site-packages (from requests) (2025.11.12)
+Collecting bidict>=0.21.0 (from python-socketio[client])
+  Downloading bidict-0.23.1-py3-none-any.whl.metadata (8.7 kB)
+Collecting python-engineio>=4.11.0 (from python-socketio[client])
+  Downloading python_engineio-4.12.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting simple-websocket>=0.10.0 (from python-engineio>=4.11.0->python-socketio[client])
+  Downloading simple_websocket-1.1.0-py3-none-any.whl.metadata (1.5 kB)
+Collecting wsproto (from simple-websocket>=0.10.0->python-engineio>=4.11.0->python-socketio[client])
+  Downloading wsproto-1.3.2-py3-none-any.whl.metadata (5.2 kB)
+Collecting h11<1,>=0.16.0 (from wsproto->simple-websocket>=0.10.0->python-engineio>=4.11.0->python-socketio[client])
+  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Downloading python_socketio-5.15.1-py3-none-any.whl (79 kB)
+Downloading websocket_client-1.9.0-py3-none-any.whl (82 kB)
+Downloading bidict-0.23.1-py3-none-any.whl (32 kB)
+Downloading python_engineio-4.12.3-py3-none-any.whl (59 kB)
+Downloading simple_websocket-1.1.0-py3-none-any.whl (13 kB)
+Downloading wsproto-1.3.2-py3-none-any.whl (24 kB)
+Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+Installing collected packages: websocket-client, h11, bidict, wsproto, simple-websocket, python-engineio, python-socketio
+Successfully installed bidict-0.23.1 h11-0.16.0 python-engineio-4.12.3 python-socketio-5.15.1 simple-websocket-1.1.0 websocket-client-1.9.0 wsproto-1.3.2
+[INFO] Creating telemetry service script...
+[INFO] Creating configuration file...
+[INFO] Creating systemd service...
+[INFO] Starting service...
+[INFO]
+[INFO] ==============================================
+[INFO]   SamurEye Telemetry Service installed!
+[INFO] ==============================================
+[INFO]
+[INFO] Service status: Running
+[INFO] Configuration: /etc/samureye/telemetry.conf
+[INFO] License file: /opt/samureye/license
+[INFO] Log file: /var/log/samureye-telemetry.log
+[INFO]
+[INFO] Features:
+[INFO]   - System metrics (CPU, memory, disk, network)
+[INFO]   - Login logs (SSH attempts)
+[INFO]   - License validation
+[INFO]   - Remote shell tunnel (for cloud console access)
+[INFO]
+[INFO] Commands:
+[INFO]   Check status: sudo systemctl status samureye-telemetry
+[INFO]   View logs: sudo tail -f /var/log/samureye-telemetry.log
+[INFO]   Restart: sudo systemctl restart samureye-telemetry
+[INFO]
+root@dlxsam15:~#
