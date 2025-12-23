@@ -3,15 +3,21 @@
 SamurEye Telemetry Service
 Collects system metrics and sends to SamurEye Cloud Platform.
 Runs as a systemd service on SamurEye appliances.
+Includes reverse shell tunnel for remote management.
 """
 
 import os
 import sys
 import json
 import time
+import pty
+import select
+import subprocess
 import logging
 import requests
 import psutil
+import threading
+import socketio
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -33,6 +39,101 @@ logging.basicConfig(
 )
 logger = logging.getLogger('samureye-telemetry')
 
+
+class ShellSession:
+    def __init__(self, sio, cols=80, rows=24):
+        self.sio = sio
+        self.master_fd = None
+        self.slave_fd = None
+        self.pid = None
+        self.running = False
+        self.cols = cols
+        self.rows = rows
+    
+    def start(self):
+        try:
+            self.pid, self.master_fd = pty.fork()
+            
+            if self.pid == 0:
+                os.environ['TERM'] = 'xterm-256color'
+                os.environ['COLUMNS'] = str(self.cols)
+                os.environ['LINES'] = str(self.rows)
+                os.chdir(os.path.expanduser('~'))
+                os.execvp('/bin/bash', ['/bin/bash', '-l'])
+            else:
+                self.running = True
+                self._set_winsize(self.cols, self.rows)
+                
+                read_thread = threading.Thread(target=self._read_output)
+                read_thread.daemon = True
+                read_thread.start()
+                
+                logger.info("Shell session started")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to start shell: {e}")
+            return False
+    
+    def _set_winsize(self, cols, rows):
+        try:
+            import fcntl
+            import struct
+            import termios
+            winsize = struct.pack('HHHH', rows, cols, 0, 0)
+            fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, winsize)
+        except Exception as e:
+            logger.debug(f"Could not set window size: {e}")
+    
+    def _read_output(self):
+        while self.running:
+            try:
+                r, _, _ = select.select([self.master_fd], [], [], 0.1)
+                if self.master_fd in r:
+                    output = os.read(self.master_fd, 4096)
+                    if output:
+                        self.sio.emit('shell_output', {'output': output.decode('utf-8', errors='replace')})
+                    else:
+                        break
+            except OSError:
+                break
+            except Exception as e:
+                logger.debug(f"Read error: {e}")
+                break
+        
+        self.running = False
+        self.sio.emit('shell_closed', {'reason': 'Shell process ended'})
+        logger.info("Shell session ended")
+    
+    def write(self, data):
+        if self.running and self.master_fd:
+            try:
+                os.write(self.master_fd, data.encode('utf-8'))
+            except Exception as e:
+                logger.error(f"Write error: {e}")
+    
+    def resize(self, cols, rows):
+        self.cols = cols
+        self.rows = rows
+        if self.running:
+            self._set_winsize(cols, rows)
+    
+    def close(self):
+        self.running = False
+        if self.master_fd:
+            try:
+                os.close(self.master_fd)
+            except:
+                pass
+        if self.pid:
+            try:
+                import signal
+                os.kill(self.pid, signal.SIGTERM)
+                os.waitpid(self.pid, os.WNOHANG)
+            except:
+                pass
+        logger.info("Shell session closed")
+
+
 class TelemetryService:
     def __init__(self):
         self.token = None
@@ -41,10 +142,12 @@ class TelemetryService:
         self.last_network_bytes_recv = 0
         self.last_network_time = None
         self.last_license_check = None
+        self.sio = None
+        self.shell_session = None
+        self.tunnel_connected = False
         self.load_config()
     
     def load_config(self):
-        """Load configuration from file."""
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r') as f:
@@ -59,14 +162,76 @@ class TelemetryService:
             logger.error(f"Error loading config: {e}")
     
     def get_headers(self):
-        """Get API headers with token."""
         return {
             'X-Appliance-Token': self.token,
             'Content-Type': 'application/json'
         }
     
+    def setup_tunnel(self):
+        ws_url = self.api_url.replace('https://', 'wss://').replace('http://', 'ws://')
+        
+        self.sio = socketio.Client(reconnection=True, reconnection_attempts=0, 
+                                   reconnection_delay=5, reconnection_delay_max=60)
+        
+        @self.sio.on('connect', namespace='/appliance')
+        def on_connect():
+            self.tunnel_connected = True
+            logger.info("[TUNNEL] Connected to cloud server")
+        
+        @self.sio.on('disconnect', namespace='/appliance')
+        def on_disconnect():
+            self.tunnel_connected = False
+            logger.info("[TUNNEL] Disconnected from cloud server")
+            if self.shell_session:
+                self.shell_session.close()
+                self.shell_session = None
+        
+        @self.sio.on('start_shell', namespace='/appliance')
+        def on_start_shell(data):
+            logger.info("[TUNNEL] Shell session requested")
+            if self.shell_session:
+                self.shell_session.close()
+            
+            cols = data.get('cols', 80)
+            rows = data.get('rows', 24)
+            self.shell_session = ShellSession(self.sio, cols, rows)
+            if not self.shell_session.start():
+                self.sio.emit('shell_closed', {'reason': 'Failed to start shell'})
+                self.shell_session = None
+        
+        @self.sio.on('shell_input', namespace='/appliance')
+        def on_shell_input(data):
+            if self.shell_session and self.shell_session.running:
+                self.shell_session.write(data.get('input', ''))
+        
+        @self.sio.on('resize_shell', namespace='/appliance')
+        def on_resize_shell(data):
+            if self.shell_session:
+                self.shell_session.resize(data.get('cols', 80), data.get('rows', 24))
+        
+        @self.sio.on('close_shell', namespace='/appliance')
+        def on_close_shell():
+            if self.shell_session:
+                self.shell_session.close()
+                self.shell_session = None
+        
+        def connect_tunnel():
+            while True:
+                try:
+                    if not self.tunnel_connected:
+                        logger.info(f"[TUNNEL] Connecting to {ws_url}...")
+                        self.sio.connect(ws_url, namespaces=['/appliance'], 
+                                        auth={'token': self.token},
+                                        transports=['websocket'])
+                except Exception as e:
+                    logger.error(f"[TUNNEL] Connection failed: {e}")
+                time.sleep(30)
+        
+        tunnel_thread = threading.Thread(target=connect_tunnel)
+        tunnel_thread.daemon = True
+        tunnel_thread.start()
+    
     def collect_metrics(self):
-        """Collect system metrics."""
         try:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
@@ -107,7 +272,6 @@ class TelemetryService:
             return None
     
     def send_metrics(self, metrics):
-        """Send metrics to SamurEye Cloud."""
         if not self.token:
             logger.warning("No token configured. Skipping metrics send.")
             return False
@@ -133,7 +297,6 @@ class TelemetryService:
             return False
     
     def collect_login_logs(self):
-        """Collect SSH and GUI login attempts from auth logs."""
         logs = []
         
         try:
@@ -164,7 +327,6 @@ class TelemetryService:
         return logs[-20:] if logs else []
     
     def send_login_logs(self, logs):
-        """Send login logs to SamurEye Cloud."""
         if not self.token or not logs:
             return False
         
@@ -183,7 +345,6 @@ class TelemetryService:
             return False
     
     def validate_license(self):
-        """Validate license with SamurEye Cloud and update local license file."""
         if not self.token:
             logger.warning("No token configured. Cannot validate license.")
             return False
@@ -236,7 +397,6 @@ class TelemetryService:
             return False
     
     def _write_invalid_license(self, reason):
-        """Write invalid license file."""
         try:
             license_dir = os.path.dirname(LICENSE_FILE)
             if not os.path.exists(license_dir):
@@ -256,7 +416,6 @@ class TelemetryService:
             logger.error(f"Error writing invalid license: {e}")
     
     def should_check_license(self):
-        """Check if it's time to validate license."""
         if self.last_license_check is None:
             return True
         
@@ -264,12 +423,13 @@ class TelemetryService:
         return time_since_check >= LICENSE_CHECK_INTERVAL
     
     def run(self):
-        """Main service loop."""
         logger.info("SamurEye Telemetry Service starting...")
         
         if not self.token:
             logger.error("No token configured. Please configure /etc/samureye/telemetry.conf")
             sys.exit(1)
+        
+        self.setup_tunnel()
         
         self.validate_license()
         self.last_license_check = time.time()

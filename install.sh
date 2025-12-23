@@ -82,7 +82,7 @@ source $APP_DIR/venv/bin/activate
 
 log_info "Installing Python dependencies..."
 pip install --upgrade pip
-pip install flask flask-sqlalchemy flask-login psycopg2-binary gunicorn python-dotenv requests werkzeug
+pip install flask flask-sqlalchemy flask-login psycopg2-binary gunicorn python-dotenv requests werkzeug flask-socketio eventlet
 
 log_info "Downloading application files from GitHub..."
 curl -sSL "$REPO_URL/app.py" -o $APP_DIR/app.py
@@ -120,7 +120,7 @@ Group=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/venv/bin"
 EnvironmentFile=$APP_DIR/.env
-ExecStart=$APP_DIR/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --access-logfile $APP_DIR/logs/access.log --error-logfile $APP_DIR/logs/error.log app:app
+ExecStart=$APP_DIR/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 1 --worker-class eventlet --access-logfile $APP_DIR/logs/access.log --error-logfile $APP_DIR/logs/error.log app:app
 Restart=always
 RestartSec=5
 

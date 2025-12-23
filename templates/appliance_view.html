@@ -1,6 +1,61 @@
 {% extends "base.html" %}
 {% block title %}{{ appliance.name }} - SamurEye Cloud{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<style>
+#terminal-container {
+    background-color: #1a1a2e;
+    border-radius: 8px;
+    padding: 10px;
+    display: none;
+}
+#terminal {
+    height: 400px;
+}
+.terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #16213e;
+    border-radius: 8px 8px 0 0;
+    color: #fff;
+}
+.terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.terminal-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #dc3545;
+}
+.terminal-status-dot.connected {
+    background: #28a745;
+}
+.tunnel-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.tunnel-connected {
+    background: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+}
+.tunnel-disconnected {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
@@ -21,6 +76,10 @@
         {% else %}
             <span class="status-badge status-inactive me-2">Desativado</span>
         {% endif %}
+        <span id="tunnel-status" class="tunnel-badge {% if is_tunnel_connected %}tunnel-connected{% else %}tunnel-disconnected{% endif %}">
+            <span class="terminal-status-dot {% if is_tunnel_connected %}connected{% endif %}"></span>
+            <span id="tunnel-status-text">{% if is_tunnel_connected %}Tunel Conectado{% else %}Tunel Desconectado{% endif %}</span>
+        </span>
         <a href="{{ url_for('edit_appliance', id=appliance.id) }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-pencil"></i> Editar
         </a>
@@ -78,6 +137,35 @@
                     </tr>
                 </table>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-terminal me-2"></i>Terminal Remoto</span>
+        <div>
+            <button id="btn-connect-shell" class="btn btn-success btn-sm" onclick="connectShell()">
+                <i class="bi bi-play-fill"></i> Conectar
+            </button>
+            <button id="btn-disconnect-shell" class="btn btn-danger btn-sm" onclick="disconnectShell()" style="display: none;">
+                <i class="bi bi-stop-fill"></i> Desconectar
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div id="terminal-container">
+            <div id="terminal"></div>
+        </div>
+        <div id="terminal-placeholder" class="text-center py-5">
+            <i class="bi bi-terminal" style="font-size: 3rem; color: #6c757d;"></i>
+            <p class="text-muted mt-3" id="terminal-placeholder-text">
+                {% if is_tunnel_connected %}
+                    Clique em "Conectar" para abrir uma sessao de terminal com o appliance.
+                {% else %}
+                    O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.
+                {% endif %}
+            </p>
         </div>
     </div>
 </div>
@@ -226,13 +314,165 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 <script>
+const applianceId = {{ appliance.id }};
+let socket = null;
+let term = null;
+let fitAddon = null;
+let shellConnected = false;
+
 function copyToken() {
     const token = "{{ appliance.token }}";
     navigator.clipboard.writeText(token).then(() => {
         alert('Token copiado!');
     });
 }
+
+function updateTunnelStatus() {
+    fetch('/api/v1/appliances/' + applianceId + '/tunnel-status')
+        .then(response => response.json())
+        .then(data => {
+            const statusBadge = document.getElementById('tunnel-status');
+            const statusText = document.getElementById('tunnel-status-text');
+            const statusDot = statusBadge.querySelector('.terminal-status-dot');
+            const placeholderText = document.getElementById('terminal-placeholder-text');
+            const btnConnect = document.getElementById('btn-connect-shell');
+            
+            if (data.connected) {
+                statusBadge.classList.remove('tunnel-disconnected');
+                statusBadge.classList.add('tunnel-connected');
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Tunel Conectado';
+                placeholderText.textContent = 'Clique em "Conectar" para abrir uma sessao de terminal com o appliance.';
+                btnConnect.disabled = false;
+            } else {
+                statusBadge.classList.remove('tunnel-connected');
+                statusBadge.classList.add('tunnel-disconnected');
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Tunel Desconectado';
+                placeholderText.textContent = 'O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.';
+                btnConnect.disabled = true;
+            }
+        })
+        .catch(err => console.error('Error checking tunnel status:', err));
+}
+
+function connectShell() {
+    if (shellConnected) return;
+    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socket = io(window.location.origin + '/console', {
+        transports: ['websocket']
+    });
+    
+    socket.on('connect', () => {
+        console.log('Console connected');
+        
+        document.getElementById('terminal-container').style.display = 'block';
+        document.getElementById('terminal-placeholder').style.display = 'none';
+        document.getElementById('btn-connect-shell').style.display = 'none';
+        document.getElementById('btn-disconnect-shell').style.display = 'inline-block';
+        
+        term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            theme: {
+                background: '#1a1a2e',
+                foreground: '#eaeaea',
+                cursor: '#e94560'
+            }
+        });
+        
+        fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+        
+        socket.emit('start_shell', {
+            appliance_id: applianceId,
+            cols: term.cols,
+            rows: term.rows
+        });
+        
+        term.onData(data => {
+            socket.emit('shell_input', {
+                appliance_id: applianceId,
+                input: data
+            });
+        });
+        
+        term.onResize(size => {
+            socket.emit('resize_shell', {
+                appliance_id: applianceId,
+                cols: size.cols,
+                rows: size.rows
+            });
+        });
+        
+        window.addEventListener('resize', () => {
+            if (fitAddon) fitAddon.fit();
+        });
+    });
+    
+    socket.on('shell_started', (data) => {
+        shellConnected = true;
+        term.writeln('\x1b[32mConectado ao appliance: ' + data.appliance_name + '\x1b[0m');
+        term.writeln('');
+    });
+    
+    socket.on('shell_output', (data) => {
+        if (term) {
+            term.write(data.output);
+        }
+    });
+    
+    socket.on('shell_error', (data) => {
+        if (term) {
+            term.writeln('\x1b[31mErro: ' + data.error + '\x1b[0m');
+        }
+        disconnectShell();
+    });
+    
+    socket.on('shell_closed', (data) => {
+        if (term) {
+            term.writeln('');
+            term.writeln('\x1b[33mSessao encerrada: ' + (data.reason || 'Conexao fechada') + '\x1b[0m');
+        }
+        shellConnected = false;
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('Console disconnected');
+        shellConnected = false;
+    });
+}
+
+function disconnectShell() {
+    if (socket) {
+        socket.emit('close_shell', { appliance_id: applianceId });
+        socket.disconnect();
+        socket = null;
+    }
+    
+    shellConnected = false;
+    
+    if (term) {
+        term.dispose();
+        term = null;
+    }
+    
+    document.getElementById('terminal-container').style.display = 'none';
+    document.getElementById('terminal-placeholder').style.display = 'block';
+    document.getElementById('btn-connect-shell').style.display = 'inline-block';
+    document.getElementById('btn-disconnect-shell').style.display = 'none';
+}
+
+setInterval(updateTunnelStatus, 10000);
+updateTunnelStatus();
 
 {% if metrics %}
 const labels = [{% for m in metrics %}"{{ m.timestamp.strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];

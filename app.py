@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from models import db, User, Contract, Appliance, Metric, LoginLog, ThreatMetadata
 
 app = Flask(__name__)
@@ -14,6 +15,11 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', ping_timeout=120, ping_interval=25)
+
+connected_appliances = {}
+shell_sessions = {}
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -168,11 +174,13 @@ def view_appliance(id):
     metrics = appliance.metrics.order_by(Metric.timestamp.desc()).limit(288).all()
     login_logs = appliance.login_logs.order_by(LoginLog.timestamp.desc()).limit(100).all()
     threats = appliance.threat_metadata.order_by(ThreatMetadata.timestamp.desc()).limit(100).all()
+    is_tunnel_connected = appliance.token in connected_appliances
     return render_template('appliance_view.html', 
                          appliance=appliance, 
                          metrics=list(reversed(metrics)),
                          login_logs=login_logs,
-                         threats=threats)
+                         threats=threats,
+                         is_tunnel_connected=is_tunnel_connected)
 
 @app.route('/appliances/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -206,7 +214,15 @@ def delete_appliance(id):
     flash('Appliance removido!', 'success')
     return redirect(url_for('view_contract', id=contract_id))
 
-# API Endpoints for Telemetry
+@app.route('/api/v1/appliances/<int:id>/tunnel-status')
+@login_required
+def get_tunnel_status(id):
+    appliance = Appliance.query.get_or_404(id)
+    return jsonify({
+        'connected': appliance.token in connected_appliances,
+        'appliance_id': id
+    })
+
 def require_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -307,6 +323,167 @@ def validate_license():
         'validated_at': datetime.utcnow().isoformat()
     })
 
+
+@socketio.on('connect', namespace='/appliance')
+def appliance_connect():
+    token = request.args.get('token')
+    if not token:
+        return False
+    
+    with app.app_context():
+        appliance = Appliance.query.filter_by(token=token, is_active=True).first()
+        if not appliance or not appliance.contract.is_valid:
+            return False
+        
+        connected_appliances[token] = {
+            'sid': request.sid,
+            'appliance_id': appliance.id,
+            'appliance_name': appliance.name,
+            'connected_at': datetime.utcnow()
+        }
+        join_room(f'appliance_{token}')
+        print(f"[TUNNEL] Appliance connected: {appliance.name} (token: {token[:8]}...)")
+        return True
+
+@socketio.on('disconnect', namespace='/appliance')
+def appliance_disconnect():
+    token_to_remove = None
+    for token, info in connected_appliances.items():
+        if info['sid'] == request.sid:
+            token_to_remove = token
+            break
+    
+    if token_to_remove:
+        info = connected_appliances.pop(token_to_remove)
+        print(f"[TUNNEL] Appliance disconnected: {info['appliance_name']}")
+        if token_to_remove in shell_sessions:
+            del shell_sessions[token_to_remove]
+
+@socketio.on('shell_output', namespace='/appliance')
+def handle_shell_output(data):
+    token = None
+    for t, info in connected_appliances.items():
+        if info['sid'] == request.sid:
+            token = t
+            break
+    
+    if token and token in shell_sessions:
+        console_sid = shell_sessions[token].get('console_sid')
+        if console_sid:
+            socketio.emit('shell_output', {'output': data.get('output', '')}, 
+                         room=console_sid, namespace='/console')
+
+@socketio.on('shell_closed', namespace='/appliance')
+def handle_shell_closed(data):
+    token = None
+    for t, info in connected_appliances.items():
+        if info['sid'] == request.sid:
+            token = t
+            break
+    
+    if token and token in shell_sessions:
+        console_sid = shell_sessions[token].get('console_sid')
+        if console_sid:
+            socketio.emit('shell_closed', {'reason': data.get('reason', 'Shell closed')}, 
+                         room=console_sid, namespace='/console')
+        del shell_sessions[token]
+
+
+@socketio.on('connect', namespace='/console')
+def console_connect():
+    pass
+
+@socketio.on('disconnect', namespace='/console')
+def console_disconnect():
+    tokens_to_close = []
+    for token, session in shell_sessions.items():
+        if session.get('console_sid') == request.sid:
+            tokens_to_close.append(token)
+    
+    for token in tokens_to_close:
+        if token in connected_appliances:
+            appliance_sid = connected_appliances[token]['sid']
+            socketio.emit('close_shell', {}, room=appliance_sid, namespace='/appliance')
+        del shell_sessions[token]
+
+@socketio.on('start_shell', namespace='/console')
+def console_start_shell(data):
+    appliance_id = data.get('appliance_id')
+    
+    with app.app_context():
+        appliance = Appliance.query.get(appliance_id)
+        if not appliance:
+            emit('shell_error', {'error': 'Appliance not found'})
+            return
+        
+        token = appliance.token
+        if token not in connected_appliances:
+            emit('shell_error', {'error': 'Appliance not connected'})
+            return
+        
+        shell_sessions[token] = {
+            'console_sid': request.sid,
+            'started_at': datetime.utcnow()
+        }
+        
+        appliance_sid = connected_appliances[token]['sid']
+        socketio.emit('start_shell', {'cols': data.get('cols', 80), 'rows': data.get('rows', 24)}, 
+                     room=appliance_sid, namespace='/appliance')
+        
+        emit('shell_started', {'appliance_name': appliance.name})
+        print(f"[TUNNEL] Shell session started for {appliance.name}")
+
+@socketio.on('shell_input', namespace='/console')
+def console_shell_input(data):
+    appliance_id = data.get('appliance_id')
+    
+    with app.app_context():
+        appliance = Appliance.query.get(appliance_id)
+        if not appliance:
+            return
+        
+        token = appliance.token
+        if token not in connected_appliances:
+            emit('shell_error', {'error': 'Appliance disconnected'})
+            return
+        
+        appliance_sid = connected_appliances[token]['sid']
+        socketio.emit('shell_input', {'input': data.get('input', '')}, 
+                     room=appliance_sid, namespace='/appliance')
+
+@socketio.on('resize_shell', namespace='/console')
+def console_resize_shell(data):
+    appliance_id = data.get('appliance_id')
+    
+    with app.app_context():
+        appliance = Appliance.query.get(appliance_id)
+        if not appliance:
+            return
+        
+        token = appliance.token
+        if token in connected_appliances:
+            appliance_sid = connected_appliances[token]['sid']
+            socketio.emit('resize_shell', {'cols': data.get('cols'), 'rows': data.get('rows')}, 
+                         room=appliance_sid, namespace='/appliance')
+
+@socketio.on('close_shell', namespace='/console')
+def console_close_shell(data):
+    appliance_id = data.get('appliance_id')
+    
+    with app.app_context():
+        appliance = Appliance.query.get(appliance_id)
+        if not appliance:
+            return
+        
+        token = appliance.token
+        if token in connected_appliances:
+            appliance_sid = connected_appliances[token]['sid']
+            socketio.emit('close_shell', {}, room=appliance_sid, namespace='/appliance')
+        
+        if token in shell_sessions:
+            del shell_sessions[token]
+
+
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
