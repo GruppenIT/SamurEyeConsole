@@ -232,15 +232,15 @@
             </div>
             <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                 {% if login_logs %}
-                <table class="table table-sm">
+                <table class="table table-sm table-hover">
                     <thead>
                         <tr>
-                            <th>Data/Hora</th>
-                            <th>Tipo</th>
+                            <th style="width: 90px;">Data/Hora</th>
+                            <th style="width: 55px;">Tipo</th>
                             <th>Usuario</th>
-                            <th>IP</th>
-                            <th>Status</th>
-                            <th></th>
+                            <th style="width: 110px;">IP</th>
+                            <th style="width: 50px; text-align: center;">Status</th>
+                            <th style="width: 40px;"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -250,15 +250,15 @@
                             <td><span class="badge bg-secondary">{{ log.login_type }}</span></td>
                             <td>{{ log.username or '-' }}</td>
                             <td>{{ log.source_ip or '-' }}</td>
-                            <td>
+                            <td style="text-align: center;">
                                 {% if log.success %}
                                     <span class="text-success"><i class="bi bi-check-circle"></i></span>
                                 {% else %}
                                     <span class="text-danger"><i class="bi bi-x-circle"></i></span>
                                 {% endif %}
                             </td>
-                            <td>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#loginDetailModal{{ log.id }}">
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-bs-toggle="modal" data-bs-target="#loginDetailModal{{ log.id }}">
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </td>
