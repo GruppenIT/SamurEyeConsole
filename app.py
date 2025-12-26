@@ -86,22 +86,45 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+PERIOD_OPTIONS = {
+    '1h': {'hours': 1, 'label': 'Ultima hora'},
+    '6h': {'hours': 6, 'label': 'Ultimas 6 horas'},
+    '24h': {'hours': 24, 'label': 'Ultimas 24 horas'},
+    '7d': {'hours': 168, 'label': 'Ultimos 7 dias'},
+    '30d': {'hours': 720, 'label': 'Ultimos 30 dias'},
+    '90d': {'hours': 2160, 'label': 'Ultimos 90 dias'}
+}
+
+DATA_RETENTION_DAYS = 90
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    period = request.args.get('period', '24h')
+    if period not in PERIOD_OPTIONS:
+        period = '24h'
+    
+    hours = PERIOD_OPTIONS[period]['hours']
+    since = datetime.utcnow() - timedelta(hours=hours)
+    max_points = hours * 12 + 100
+    
     contracts = Contract.query.all()
     total_appliances = Appliance.query.count()
     active_appliances = Appliance.query.filter(
         Appliance.last_seen >= datetime.utcnow() - timedelta(minutes=10)
     ).count()
     
-    recent_metrics = Metric.query.order_by(Metric.timestamp.desc()).limit(50).all()
+    recent_metrics = Metric.query.filter(
+        Metric.timestamp >= since
+    ).order_by(Metric.timestamp.desc()).limit(max_points).all()
     
     return render_template('dashboard.html', 
                          contracts=contracts,
                          total_appliances=total_appliances,
                          active_appliances=active_appliances,
-                         recent_metrics=list(reversed(recent_metrics)))
+                         recent_metrics=list(reversed(recent_metrics)),
+                         current_period=period,
+                         period_options=PERIOD_OPTIONS)
 
 @app.route('/contracts')
 @login_required
@@ -175,17 +198,27 @@ def new_appliance(contract_id):
 @app.route('/appliances/<int:id>')
 @login_required
 def view_appliance(id):
+    period = request.args.get('period', '24h')
+    if period not in PERIOD_OPTIONS:
+        period = '24h'
+    
+    hours = PERIOD_OPTIONS[period]['hours']
+    since = datetime.utcnow() - timedelta(hours=hours)
+    max_points = hours * 12 + 100
+    
     appliance = Appliance.query.get_or_404(id)
-    metrics = appliance.metrics.order_by(Metric.timestamp.desc()).limit(288).all()
-    login_logs = appliance.login_logs.order_by(LoginLog.timestamp.desc()).limit(100).all()
-    threats = appliance.threat_metadata.order_by(ThreatMetadata.timestamp.desc()).limit(100).all()
+    metrics = appliance.metrics.filter(Metric.timestamp >= since).order_by(Metric.timestamp.desc()).limit(max_points).all()
+    login_logs = appliance.login_logs.filter(LoginLog.timestamp >= since).order_by(LoginLog.timestamp.desc()).all()
+    threats = appliance.threat_metadata.filter(ThreatMetadata.timestamp >= since).order_by(ThreatMetadata.timestamp.desc()).all()
     is_tunnel_connected = appliance.token in connected_appliances
     return render_template('appliance_view.html', 
                          appliance=appliance, 
                          metrics=list(reversed(metrics)),
                          login_logs=login_logs,
                          threats=threats,
-                         is_tunnel_connected=is_tunnel_connected)
+                         is_tunnel_connected=is_tunnel_connected,
+                         current_period=period,
+                         period_options=PERIOD_OPTIONS)
 
 @app.route('/appliances/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -493,6 +526,26 @@ def console_close_shell(data):
             del shell_sessions[token]
 
 
+def cleanup_old_data():
+    with app.app_context():
+        cutoff_date = datetime.utcnow() - timedelta(days=DATA_RETENTION_DAYS)
+        
+        old_metrics = Metric.query.filter(Metric.timestamp < cutoff_date).delete()
+        old_logs = LoginLog.query.filter(LoginLog.timestamp < cutoff_date).delete()
+        old_threats = ThreatMetadata.query.filter(ThreatMetadata.timestamp < cutoff_date).delete()
+        
+        db.session.commit()
+        
+        if old_metrics or old_logs or old_threats:
+            print(f"[CLEANUP] Removed old data: {old_metrics} metrics, {old_logs} login logs, {old_threats} threats")
+
+@app.route('/api/v1/cleanup', methods=['POST'])
+@login_required
+def run_cleanup():
+    cleanup_old_data()
+    return jsonify({'status': 'ok', 'message': f'Dados com mais de {DATA_RETENTION_DAYS} dias removidos'})
+
 if __name__ == '__main__':
     init_db()
+    cleanup_old_data()
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

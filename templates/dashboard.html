@@ -33,8 +33,15 @@
 
 {% if recent_metrics %}
 <div class="card mb-4">
-    <div class="card-header">
-        <i class="bi bi-graph-up me-2"></i>Metricas de Telemetria (Agregado)
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up me-2"></i>Metricas de Telemetria (Agregado)</span>
+        <div class="btn-group btn-group-sm" role="group">
+            {% for key, opt in period_options.items() %}
+            <a href="{{ url_for('dashboard', period=key) }}" class="btn {% if current_period == key %}btn-samureye{% else %}btn-outline-secondary{% endif %}">
+                {{ opt.label }}
+            </a>
+            {% endfor %}
+        </div>
     </div>
     <div class="card-body">
         <div class="row">

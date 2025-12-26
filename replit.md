@@ -122,8 +122,19 @@ The telemetry service generates `/opt/samureye/license`:
 }
 ```
 
+## Data Retention
+- Metrics, login logs, and threat metadata are retained for 90 days
+- Automatic cleanup runs on application startup
+- Manual cleanup available via POST /api/v1/cleanup
+
+## Period Selection
+Charts and data tables support multiple time periods:
+- 1 hour, 6 hours, 24 hours (default)
+- 7 days, 30 days, 90 days
+
 ## Recent Changes
 - 2024-12-23: Initial implementation with full CRUD, API endpoints, and telemetry service
 - 2024-12-23: Security improvement - removed hardcoded password, added Chart.js dashboard visualization
 - 2024-12-23: Added SSL preservation on reinstall, created separate setup-ssl.sh script
 - 2024-12-23: Implemented reverse shell tunnel via WebSocket/Socket.IO for remote appliance access
+- 2024-12-26: Added period selection for charts (1h to 90 days) and 90-day data retention policy

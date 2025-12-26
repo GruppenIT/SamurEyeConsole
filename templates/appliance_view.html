@@ -170,12 +170,20 @@
     </div>
 </div>
 
-{% if metrics %}
+{% if metrics or login_logs or threats %}
 <div class="card mb-4">
-    <div class="card-header">
-        <i class="bi bi-graph-up me-2"></i>Metricas de Saude (Ultimas 24h)
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up me-2"></i>Metricas de Saude ({{ period_options[current_period].label }})</span>
+        <div class="btn-group btn-group-sm" role="group">
+            {% for key, opt in period_options.items() %}
+            <a href="{{ url_for('view_appliance', id=appliance.id, period=key) }}" class="btn {% if current_period == key %}btn-samureye{% else %}btn-outline-secondary{% endif %}">
+                {{ opt.label }}
+            </a>
+            {% endfor %}
+        </div>
     </div>
     <div class="card-body">
+{% if metrics %}
         <div class="row mb-4">
             <div class="col-md-3">
                 <div class="text-center">
@@ -210,6 +218,8 @@
                 <canvas id="networkChart" height="200"></canvas>
             </div>
         </div>
+    </div>
+{% endif %}
     </div>
 </div>
 {% endif %}
