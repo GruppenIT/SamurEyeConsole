@@ -232,24 +232,24 @@
             </div>
             <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                 {% if login_logs %}
-                <table class="table table-sm table-hover">
+                <table class="table table-sm table-hover" style="table-layout: fixed;">
                     <thead>
                         <tr>
-                            <th style="width: 90px;">Data/Hora</th>
-                            <th style="width: 55px;">Tipo</th>
-                            <th>Usuario</th>
-                            <th style="width: 110px;">IP</th>
-                            <th style="width: 50px; text-align: center;">Status</th>
-                            <th style="width: 40px;"></th>
+                            <th style="width: 75px;">Data/Hora</th>
+                            <th style="width: 45px;">Tipo</th>
+                            <th style="width: 70px;">Usuario</th>
+                            <th style="width: 95px;">IP</th>
+                            <th style="width: 35px; text-align: center;"></th>
+                            <th style="width: 30px;"></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for log in login_logs %}
                         <tr>
-                            <td>{{ (log.timestamp|to_brazil_tz).strftime('%d/%m %H:%M') }}</td>
-                            <td><span class="badge bg-secondary">{{ log.login_type }}</span></td>
-                            <td>{{ log.username or '-' }}</td>
-                            <td>{{ log.source_ip or '-' }}</td>
+                            <td style="white-space: nowrap; font-size: 0.85em;">{{ (log.timestamp|to_brazil_tz).strftime('%d/%m %H:%M') }}</td>
+                            <td><span class="badge bg-secondary" style="font-size: 0.7em;">{{ log.login_type }}</span></td>
+                            <td style="font-size: 0.85em; overflow: hidden; text-overflow: ellipsis;">{{ log.username or '-' }}</td>
+                            <td style="font-size: 0.85em;">{{ log.source_ip or '-' }}</td>
                             <td style="text-align: center;">
                                 {% if log.success %}
                                     <span class="text-success"><i class="bi bi-check-circle"></i></span>
