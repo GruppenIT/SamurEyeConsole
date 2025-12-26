@@ -240,6 +240,7 @@
                             <th>Usuario</th>
                             <th>IP</th>
                             <th>Status</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -255,6 +256,11 @@
                                 {% else %}
                                     <span class="text-danger"><i class="bi bi-x-circle"></i></span>
                                 {% endif %}
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#loginDetailModal{{ log.id }}">
+                                    <i class="bi bi-eye"></i>
+                                </button>
                             </td>
                         </tr>
                         {% endfor %}
@@ -321,6 +327,60 @@
         </button>
     </form>
 </div>
+
+{% for log in login_logs %}
+<div class="modal fade" id="loginDetailModal{{ log.id }}" tabindex="-1" aria-labelledby="loginDetailModalLabel{{ log.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="loginDetailModalLabel{{ log.id }}">
+                    <i class="bi bi-door-open me-2"></i>Detalhes do Login
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 140px;">Data/Hora:</th>
+                        <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                    </tr>
+                    <tr>
+                        <th>Tipo:</th>
+                        <td><span class="badge bg-secondary">{{ log.login_type }}</span></td>
+                    </tr>
+                    <tr>
+                        <th>Usuario:</th>
+                        <td>{{ log.username or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>IP de Origem:</th>
+                        <td>{{ log.source_ip or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if log.success %}
+                                <span class="badge bg-success">Sucesso</span>
+                            {% else %}
+                                <span class="badge bg-danger">Falha</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if log.details %}
+                    <tr>
+                        <th>Detalhes:</th>
+                        <td><pre style="white-space: pre-wrap; font-size: 0.85em; background: #f8f9fa; padding: 8px; border-radius: 4px; margin: 0;">{{ log.details }}</pre></td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}
 
 {% block extra_js %}

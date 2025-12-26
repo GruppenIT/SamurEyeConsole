@@ -208,7 +208,10 @@ def view_appliance(id):
     
     appliance = Appliance.query.get_or_404(id)
     metrics = appliance.metrics.filter(Metric.timestamp >= since).order_by(Metric.timestamp.desc()).limit(max_points).all()
-    login_logs = appliance.login_logs.filter(LoginLog.timestamp >= since).order_by(LoginLog.timestamp.desc()).all()
+    login_logs = appliance.login_logs.filter(
+        LoginLog.timestamp >= since,
+        LoginLog.source_ip.notin_(['127.0.0.1', '::1', 'localhost'])
+    ).order_by(LoginLog.timestamp.desc()).all()
     threats = appliance.threat_metadata.filter(ThreatMetadata.timestamp >= since).order_by(ThreatMetadata.timestamp.desc()).all()
     is_tunnel_connected = appliance.token in connected_appliances
     return render_template('appliance_view.html', 
