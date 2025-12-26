@@ -246,7 +246,7 @@
                     <tbody>
                         {% for log in login_logs %}
                         <tr>
-                            <td>{{ log.timestamp.strftime('%d/%m %H:%M') }}</td>
+                            <td>{{ (log.timestamp|to_brazil_tz).strftime('%d/%m %H:%M') }}</td>
                             <td><span class="badge bg-secondary">{{ log.login_type }}</span></td>
                             <td>{{ log.username or '-' }}</td>
                             <td>{{ log.source_ip or '-' }}</td>
@@ -292,7 +292,7 @@
                     <tbody>
                         {% for threat in threats %}
                         <tr>
-                            <td>{{ threat.timestamp.strftime('%d/%m %H:%M') }}</td>
+                            <td>{{ (threat.timestamp|to_brazil_tz).strftime('%d/%m %H:%M') }}</td>
                             <td>{{ threat.threat_type or '-' }}</td>
                             <td>
                                 {% if threat.severity == 'critical' %}
@@ -342,7 +342,7 @@
                 <table class="table table-borderless">
                     <tr>
                         <th style="width: 140px;">Data/Hora:</th>
-                        <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                        <td>{{ (log.timestamp|to_brazil_tz).strftime('%d/%m/%Y %H:%M:%S') }}</td>
                     </tr>
                     <tr>
                         <th>Tipo:</th>
@@ -546,9 +546,9 @@ updateTunnelStatus();
 
 {% if metrics %}
 {% if current_period in ['7d', '30d', '90d'] %}
-const labels = [{% for m in metrics %}"{{ m.timestamp.strftime('%d/%m') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+const labels = [{% for m in metrics %}"{{ (m.timestamp|to_brazil_tz).strftime('%d/%m') }}"{% if not loop.last %},{% endif %}{% endfor %}];
 {% else %}
-const labels = [{% for m in metrics %}"{{ m.timestamp.strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+const labels = [{% for m in metrics %}"{{ (m.timestamp|to_brazil_tz).strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
 {% endif %}
 
 new Chart(document.getElementById('cpuMemChart'), {

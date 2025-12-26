@@ -25,6 +25,14 @@ shell_sessions = {}
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+BRAZIL_OFFSET = timedelta(hours=-3)
+
+@app.template_filter('to_brazil_tz')
+def to_brazil_tz(dt):
+    if dt is None:
+        return ''
+    return dt + BRAZIL_OFFSET
+
 @app.context_processor
 def utility_processor():
     return {'now': datetime.utcnow}

@@ -110,9 +110,9 @@
 {% if recent_metrics %}
 <script>
 {% if current_period in ['7d', '30d', '90d'] %}
-const labels = [{% for m in recent_metrics %}"{{ m.timestamp.strftime('%d/%m') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+const labels = [{% for m in recent_metrics %}"{{ (m.timestamp|to_brazil_tz).strftime('%d/%m') }}"{% if not loop.last %},{% endif %}{% endfor %}];
 {% else %}
-const labels = [{% for m in recent_metrics %}"{{ m.timestamp.strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+const labels = [{% for m in recent_metrics %}"{{ (m.timestamp|to_brazil_tz).strftime('%H:%M') }}"{% if not loop.last %},{% endif %}{% endfor %}];
 {% endif %}
 
 new Chart(document.getElementById('cpuMemChart'), {
