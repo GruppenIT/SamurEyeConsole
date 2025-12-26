@@ -23,7 +23,7 @@ Central management platform for SamurEye appliances - cyber threat assessment co
 ### Database Models
 - `User`: Admin users (admin@samureye.com.br)
 - `Contract`: Client contracts with validity period
-- `Appliance`: Devices with unique tokens
+- `Appliance`: Devices with unique tokens and system inventory (IP, hostname, virtualization, vCPUs, memory, disk, OS)
 - `Metric`: System health metrics (CPU, memory, disk, network)
 - `LoginLog`: SSH/GUI login attempts
 - `ThreatMetadata`: Threat information from appliances
@@ -34,6 +34,7 @@ All telemetry endpoints require `X-Appliance-Token` header:
 - `POST /api/v1/telemetry/metrics` - Submit system metrics
 - `POST /api/v1/telemetry/login-logs` - Submit login logs
 - `POST /api/v1/telemetry/threats` - Submit threat metadata
+- `POST /api/v1/telemetry/inventory` - Submit system inventory (IP, hostname, virtualization, specs)
 - `GET /api/v1/license/validate` - Validate license and get contract info
 - `GET /api/v1/appliances/<id>/tunnel-status` - Check if appliance tunnel is connected
 
@@ -79,6 +80,7 @@ sudo bash install_telemetry.sh <TOKEN> [API_URL]
 ```
 - Creates systemd service
 - Sends metrics every 5 minutes
+- Sends system inventory every hour (IP, hostname, virtualization type, hardware specs, OS)
 - Validates license daily
 - Generates /opt/samureye/license file
 - Establishes persistent WebSocket tunnel for remote shell
@@ -138,3 +140,4 @@ Charts and data tables support multiple time periods:
 - 2024-12-23: Added SSL preservation on reinstall, created separate setup-ssl.sh script
 - 2024-12-23: Implemented reverse shell tunnel via WebSocket/Socket.IO for remote appliance access
 - 2024-12-26: Added period selection for charts (1h to 90 days) and 90-day data retention policy
+- 2024-12-26: Added system inventory tracking (IP, hostname, virtualization type, vCPUs, memory, disk, OS) with hourly updates

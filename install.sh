@@ -246,6 +246,40 @@ export DATABASE_URL=postgresql://samureye:samureye_secure_password_change_me@loc
 export ADMIN_PASSWORD=$ADMIN_PASSWORD
 python3 -c "from app import app, db, init_db; app.app_context().push(); db.create_all(); init_db()"
 
+log_info "Applying database migrations for inventory fields..."
+sudo -u postgres psql -d samureye_cloud << 'MIGRATIONEOF'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='ip_address') THEN
+        ALTER TABLE appliances ADD COLUMN ip_address VARCHAR(45);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='hostname') THEN
+        ALTER TABLE appliances ADD COLUMN hostname VARCHAR(255);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='virtualization') THEN
+        ALTER TABLE appliances ADD COLUMN virtualization VARCHAR(100);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='vcpus') THEN
+        ALTER TABLE appliances ADD COLUMN vcpus INTEGER;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='memory_gb') THEN
+        ALTER TABLE appliances ADD COLUMN memory_gb FLOAT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='disk_gb') THEN
+        ALTER TABLE appliances ADD COLUMN disk_gb FLOAT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='os_distribution') THEN
+        ALTER TABLE appliances ADD COLUMN os_distribution VARCHAR(100);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='os_version') THEN
+        ALTER TABLE appliances ADD COLUMN os_version VARCHAR(50);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='appliances' AND column_name='inventory_updated_at') THEN
+        ALTER TABLE appliances ADD COLUMN inventory_updated_at TIMESTAMP;
+    END IF;
+END $$;
+MIGRATIONEOF
+
 log_info "Starting application service..."
 systemctl start samureye-cloud
 

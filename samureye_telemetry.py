@@ -308,11 +308,23 @@ class TelemetryService:
             ip_address = None
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.settimeout(2)
                 s.connect(("8.8.8.8", 80))
                 ip_address = s.getsockname()[0]
                 s.close()
             except:
-                pass
+                try:
+                    for iface_name, iface_addrs in psutil.net_if_addrs().items():
+                        if iface_name.startswith('lo'):
+                            continue
+                        for addr in iface_addrs:
+                            if addr.family == socket.AF_INET and not addr.address.startswith('127.'):
+                                ip_address = addr.address
+                                break
+                        if ip_address:
+                            break
+                except:
+                    pass
             
             virtualization = "Maquina Fisica"
             try:
