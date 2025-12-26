@@ -125,7 +125,7 @@
                         <td class="text-muted">Ultima Atividade:</td>
                         <td>
                             {% if appliance.last_seen %}
-                                {{ appliance.last_seen.strftime('%d/%m/%Y %H:%M:%S') }}
+                                {{ (appliance.last_seen|to_brazil_tz).strftime('%d/%m/%Y %H:%M:%S') }}
                             {% else %}
                                 <span class="text-muted">Nunca conectou</span>
                             {% endif %}
@@ -133,11 +133,65 @@
                     </tr>
                     <tr>
                         <td class="text-muted">Criado em:</td>
-                        <td>{{ appliance.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ (appliance.created_at|to_brazil_tz).strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
                 </table>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-pc-display me-2"></i>Inventario do Sistema
+    </div>
+    <div class="card-body">
+        {% if appliance.inventory_updated_at %}
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-borderless table-sm mb-0">
+                    <tr>
+                        <td class="text-muted" style="width: 140px;">Endereco IP:</td>
+                        <td><code>{{ appliance.ip_address or '-' }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Hostname:</td>
+                        <td><strong>{{ appliance.hostname or '-' }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Tecnologia:</td>
+                        <td>{{ appliance.virtualization or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Sistema Operacional:</td>
+                        <td>{{ appliance.os_distribution or '-' }} {{ appliance.os_version or '' }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless table-sm mb-0">
+                    <tr>
+                        <td class="text-muted" style="width: 140px;">vCPUs:</td>
+                        <td>{{ appliance.vcpus or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Memoria:</td>
+                        <td>{{ "%.1f"|format(appliance.memory_gb or 0) }} GB</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Disco:</td>
+                        <td>{{ "%.1f"|format(appliance.disk_gb or 0) }} GB</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Atualizado em:</td>
+                        <td>{{ (appliance.inventory_updated_at|to_brazil_tz).strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted text-center mb-0">Aguardando dados de inventario do appliance...</p>
+        {% endif %}
     </div>
 </div>
 

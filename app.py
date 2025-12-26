@@ -358,6 +358,27 @@ def receive_threats():
     db.session.commit()
     return jsonify({'status': 'ok', 'count': len(threats)})
 
+@app.route('/api/v1/telemetry/inventory', methods=['POST'])
+@require_token
+def receive_inventory():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    appliance = request.appliance
+    appliance.ip_address = data.get('ip_address')
+    appliance.hostname = data.get('hostname')
+    appliance.virtualization = data.get('virtualization')
+    appliance.vcpus = data.get('vcpus')
+    appliance.memory_gb = data.get('memory_gb')
+    appliance.disk_gb = data.get('disk_gb')
+    appliance.os_distribution = data.get('os_distribution')
+    appliance.os_version = data.get('os_version')
+    appliance.inventory_updated_at = datetime.utcnow()
+    appliance.last_seen = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
 @app.route('/api/v1/license/validate', methods=['GET'])
 @require_token
 def validate_license():

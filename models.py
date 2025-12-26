@@ -53,6 +53,16 @@ class Appliance(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    ip_address = db.Column(db.String(45))
+    hostname = db.Column(db.String(255))
+    virtualization = db.Column(db.String(100))
+    vcpus = db.Column(db.Integer)
+    memory_gb = db.Column(db.Float)
+    disk_gb = db.Column(db.Float)
+    os_distribution = db.Column(db.String(100))
+    os_version = db.Column(db.String(50))
+    inventory_updated_at = db.Column(db.DateTime)
+    
     metrics = db.relationship('Metric', backref='appliance', lazy='dynamic', cascade='all, delete-orphan')
     login_logs = db.relationship('LoginLog', backref='appliance', lazy='dynamic', cascade='all, delete-orphan')
     threat_metadata = db.relationship('ThreatMetadata', backref='appliance', lazy='dynamic', cascade='all, delete-orphan')

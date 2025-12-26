@@ -28,6 +28,7 @@ LOG_FILE = '/var/log/samureye-telemetry.log'
 API_BASE_URL = os.environ.get('SAMUREYE_API_URL', 'https://app.samureye.com.br')
 METRICS_INTERVAL = 300
 LICENSE_CHECK_INTERVAL = 86400
+INVENTORY_INTERVAL = 3600
 
 logging.basicConfig(
     level=logging.INFO,
@@ -142,6 +143,7 @@ class TelemetryService:
         self.last_network_bytes_recv = 0
         self.last_network_time = None
         self.last_license_check = None
+        self.last_inventory_send = None
         self.sio = None
         self.shell_session = None
         self.tunnel_connected = False
@@ -296,6 +298,121 @@ class TelemetryService:
             logger.error(f"Network error sending metrics: {e}")
             return False
     
+    def collect_inventory(self):
+        try:
+            import socket
+            import platform
+            
+            hostname = socket.gethostname()
+            
+            ip_address = None
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                ip_address = s.getsockname()[0]
+                s.close()
+            except:
+                pass
+            
+            virtualization = "Maquina Fisica"
+            try:
+                result = subprocess.run(['systemd-detect-virt'], capture_output=True, text=True, timeout=5)
+                virt_type = result.stdout.strip()
+                if virt_type and virt_type != 'none':
+                    virt_mapping = {
+                        'vmware': 'VMware',
+                        'kvm': 'KVM/QEMU',
+                        'oracle': 'VirtualBox',
+                        'microsoft': 'Hyper-V',
+                        'xen': 'Xen',
+                        'docker': 'Docker Container',
+                        'lxc': 'LXC Container',
+                        'openvz': 'OpenVZ'
+                    }
+                    virtualization = virt_mapping.get(virt_type, virt_type.capitalize())
+            except:
+                try:
+                    with open('/sys/class/dmi/id/sys_vendor', 'r') as f:
+                        vendor = f.read().strip().lower()
+                        if 'vmware' in vendor:
+                            virtualization = 'VMware'
+                        elif 'microsoft' in vendor:
+                            virtualization = 'Hyper-V'
+                        elif 'qemu' in vendor or 'kvm' in vendor:
+                            virtualization = 'KVM/QEMU'
+                        elif 'virtualbox' in vendor or 'oracle' in vendor:
+                            virtualization = 'VirtualBox'
+                        elif 'xen' in vendor:
+                            virtualization = 'Xen'
+                except:
+                    pass
+            
+            vcpus = psutil.cpu_count(logical=True)
+            memory_gb = psutil.virtual_memory().total / (1024 ** 3)
+            disk_gb = psutil.disk_usage('/').total / (1024 ** 3)
+            
+            os_distribution = platform.system()
+            os_version = platform.release()
+            try:
+                import distro
+                os_distribution = distro.name()
+                os_version = distro.version()
+            except ImportError:
+                try:
+                    result = subprocess.run(['lsb_release', '-d'], capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        desc = result.stdout.strip().replace('Description:', '').strip()
+                        parts = desc.rsplit(' ', 1)
+                        if len(parts) == 2:
+                            os_distribution = parts[0]
+                            os_version = parts[1]
+                        else:
+                            os_distribution = desc
+                except:
+                    try:
+                        with open('/etc/os-release', 'r') as f:
+                            for line in f:
+                                if line.startswith('NAME='):
+                                    os_distribution = line.split('=')[1].strip().strip('"')
+                                elif line.startswith('VERSION_ID='):
+                                    os_version = line.split('=')[1].strip().strip('"')
+                    except:
+                        pass
+            
+            inventory = {
+                'ip_address': ip_address,
+                'hostname': hostname,
+                'virtualization': virtualization,
+                'vcpus': vcpus,
+                'memory_gb': round(memory_gb, 2),
+                'disk_gb': round(disk_gb, 2),
+                'os_distribution': os_distribution,
+                'os_version': os_version
+            }
+            
+            return inventory
+        except Exception as e:
+            logger.error(f"Error collecting inventory: {e}")
+            return None
+    
+    def send_inventory(self, inventory):
+        if not self.token or not inventory:
+            return False
+        
+        try:
+            url = f"{self.api_url}/api/v1/telemetry/inventory"
+            response = requests.post(url, json=inventory, headers=self.get_headers(), timeout=30)
+            
+            if response.status_code == 200:
+                logger.info("Inventory sent successfully")
+                return True
+            else:
+                logger.error(f"Failed to send inventory: {response.status_code}")
+                return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error sending inventory: {e}")
+            return False
+    
     def collect_login_logs(self):
         logs = []
         
@@ -422,6 +539,13 @@ class TelemetryService:
         time_since_check = time.time() - self.last_license_check
         return time_since_check >= LICENSE_CHECK_INTERVAL
     
+    def should_send_inventory(self):
+        if self.last_inventory_send is None:
+            return True
+        
+        time_since_send = time.time() - self.last_inventory_send
+        return time_since_send >= INVENTORY_INTERVAL
+    
     def run(self):
         logger.info("SamurEye Telemetry Service starting...")
         
@@ -434,12 +558,24 @@ class TelemetryService:
         self.validate_license()
         self.last_license_check = time.time()
         
+        inventory = self.collect_inventory()
+        if inventory:
+            self.send_inventory(inventory)
+            self.last_inventory_send = time.time()
+        
         while True:
             try:
                 if self.should_check_license():
                     logger.info("Performing daily license check...")
                     self.validate_license()
                     self.last_license_check = time.time()
+                
+                if self.should_send_inventory():
+                    logger.info("Sending inventory update...")
+                    inventory = self.collect_inventory()
+                    if inventory:
+                        self.send_inventory(inventory)
+                        self.last_inventory_send = time.time()
                 
                 metrics = self.collect_metrics()
                 if metrics:
