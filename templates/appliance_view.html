@@ -197,13 +197,16 @@
 
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-terminal me-2"></i>Terminal Remoto</span>
+        <span><i class="bi bi-terminal me-2"></i>Acesso Remoto</span>
         <div>
-            <button id="btn-connect-shell" class="btn btn-success btn-sm" onclick="connectShell()">
-                <i class="bi bi-play-fill"></i> Conectar
+            <a id="btn-connect-gui" href="{{ url_for('proxy_gui', appliance_id=appliance.id) }}" target="_blank" class="btn btn-primary btn-sm me-2 {% if not is_tunnel_connected %}disabled{% endif %}">
+                <i class="bi bi-display"></i> Conectar GUI
+            </a>
+            <button id="btn-connect-shell" class="btn btn-success btn-sm" onclick="connectShell()" {% if not is_tunnel_connected %}disabled{% endif %}>
+                <i class="bi bi-terminal"></i> Conectar Shell
             </button>
             <button id="btn-disconnect-shell" class="btn btn-danger btn-sm" onclick="disconnectShell()" style="display: none;">
-                <i class="bi bi-stop-fill"></i> Desconectar
+                <i class="bi bi-stop-fill"></i> Desconectar Shell
             </button>
         </div>
     </div>
@@ -215,7 +218,7 @@
             <i class="bi bi-terminal" style="font-size: 3rem; color: #6c757d;"></i>
             <p class="text-muted mt-3" id="terminal-placeholder-text">
                 {% if is_tunnel_connected %}
-                    Clique em "Conectar" para abrir uma sessao de terminal com o appliance.
+                    Use <strong>Conectar GUI</strong> para acessar a interface web do SamurEye em uma nova aba,<br>ou <strong>Conectar Shell</strong> para abrir um terminal de linha de comando.
                 {% else %}
                     O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.
                 {% endif %}
@@ -490,22 +493,25 @@ function updateTunnelStatus() {
             const statusText = document.getElementById('tunnel-status-text');
             const statusDot = statusBadge.querySelector('.terminal-status-dot');
             const placeholderText = document.getElementById('terminal-placeholder-text');
-            const btnConnect = document.getElementById('btn-connect-shell');
+            const btnConnectShell = document.getElementById('btn-connect-shell');
+            const btnConnectGui = document.getElementById('btn-connect-gui');
             
             if (data.connected) {
                 statusBadge.classList.remove('tunnel-disconnected');
                 statusBadge.classList.add('tunnel-connected');
                 statusDot.classList.add('connected');
                 statusText.textContent = 'Tunel Conectado';
-                placeholderText.textContent = 'Clique em "Conectar" para abrir uma sessao de terminal com o appliance.';
-                btnConnect.disabled = false;
+                placeholderText.innerHTML = 'Use <strong>Conectar GUI</strong> para acessar a interface web do SamurEye em uma nova aba,<br>ou <strong>Conectar Shell</strong> para abrir um terminal de linha de comando.';
+                btnConnectShell.disabled = false;
+                btnConnectGui.classList.remove('disabled');
             } else {
                 statusBadge.classList.remove('tunnel-connected');
                 statusBadge.classList.add('tunnel-disconnected');
                 statusDot.classList.remove('connected');
                 statusText.textContent = 'Tunel Desconectado';
                 placeholderText.textContent = 'O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.';
-                btnConnect.disabled = true;
+                btnConnectShell.disabled = true;
+                btnConnectGui.classList.add('disabled');
             }
         })
         .catch(err => console.error('Error checking tunnel status:', err));

@@ -217,6 +217,69 @@ class TelemetryService:
                 self.shell_session.close()
                 self.shell_session = None
         
+        @self.sio.on('http_request', namespace='/appliance')
+        def on_http_request(data):
+            request_id = data.get('request_id')
+            method = data.get('method', 'GET')
+            path = data.get('path', '/')
+            headers = data.get('headers', {})
+            body = data.get('body')
+            
+            try:
+                import urllib.request
+                import urllib.error
+                import base64
+                
+                url = f"http://127.0.0.1:80{path}"
+                logger.info(f"[PROXY] {method} {url}")
+                
+                req = urllib.request.Request(url, method=method)
+                for key, value in headers.items():
+                    if key.lower() not in ['host', 'connection', 'content-length']:
+                        req.add_header(key, value)
+                
+                if body:
+                    req.data = body.encode('utf-8') if isinstance(body, str) else body
+                
+                try:
+                    with urllib.request.urlopen(req, timeout=30) as response:
+                        response_body = response.read()
+                        response_headers = dict(response.getheaders())
+                        
+                        content_type = response_headers.get('Content-Type', '')
+                        if any(t in content_type for t in ['text/', 'application/json', 'application/javascript', 'application/xml']):
+                            body_data = response_body.decode('utf-8', errors='replace')
+                            is_binary = False
+                        else:
+                            body_data = base64.b64encode(response_body).decode('ascii')
+                            is_binary = True
+                        
+                        self.sio.emit('http_response', {
+                            'request_id': request_id,
+                            'status': response.status,
+                            'headers': response_headers,
+                            'body': body_data,
+                            'is_binary': is_binary
+                        }, namespace='/appliance')
+                except urllib.error.HTTPError as e:
+                    body_data = e.read().decode('utf-8', errors='replace') if e.fp else ''
+                    self.sio.emit('http_response', {
+                        'request_id': request_id,
+                        'status': e.code,
+                        'headers': dict(e.headers),
+                        'body': body_data,
+                        'is_binary': False
+                    }, namespace='/appliance')
+            except Exception as e:
+                logger.error(f"[PROXY] Error: {e}")
+                self.sio.emit('http_response', {
+                    'request_id': request_id,
+                    'status': 502,
+                    'headers': {'Content-Type': 'text/plain'},
+                    'body': f'Proxy Error: {str(e)}',
+                    'is_binary': False
+                }, namespace='/appliance')
+        
         def connect_tunnel():
             while True:
                 try:
