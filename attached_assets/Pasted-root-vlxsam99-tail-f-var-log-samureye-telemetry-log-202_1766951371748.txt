@@ -1,0 +1,31 @@
+root@vlxsam99:~# tail -f /var/log/samureye-telemetry.log
+2025-12-28 19:45:26,335 - INFO - Shell session closed
+2025-12-28 19:45:31,210 - INFO - [TUNNEL] Connected to cloud server
+2025-12-28 19:47:59,551 - INFO - Configuration loaded. API URL: https://app.samureye.com.br
+2025-12-28 19:47:59,551 - INFO - SamurEye Telemetry Service starting...
+2025-12-28 19:47:59,551 - INFO - [TUNNEL] Connecting to wss://app.samureye.com.br...
+2025-12-28 19:47:59,630 - INFO - License validated. Valid: True
+2025-12-28 19:47:59,632 - INFO - [TUNNEL] Connected to cloud server
+2025-12-28 19:47:59,692 - INFO - Inventory sent successfully
+2025-12-28 19:48:00,748 - INFO - Metrics sent successfully
+2025-12-28 19:48:00,801 - INFO - Login logs sent: 2 entries
+2025-12-28 19:48:21,703 - INFO - [TUNNEL] Shell session requested
+2025-12-28 19:48:21,707 - INFO - Shell session started
+2025-12-28 19:48:26,605 - INFO - [PROXY] GET http://127.0.0.1:80/
+2025-12-28 19:48:26,650 - INFO - [PROXY] Response 200 for / (2195 bytes)
+2025-12-28 19:48:26,736 - INFO - [PROXY] GET http://127.0.0.1:80/assets/index-BzBCczvz.js
+2025-12-28 19:48:26,746 - INFO - [PROXY] Response 200 for /assets/index-BzBCczvz.js (1143719 bytes)
+2025-12-28 19:48:26,747 - INFO - [PROXY] GET http://127.0.0.1:80/assets/index-Dq212KW_.css
+2025-12-28 19:48:26,769 - INFO - [TUNNEL] Disconnected from cloud server
+2025-12-28 19:48:26,770 - INFO - Shell session closed
+2025-12-28 19:48:26,770 - INFO - [PROXY] Response 200 for /assets/index-Dq212KW_.css (74694 bytes)
+2025-12-28 19:48:26,770 - ERROR - [PROXY] Error: /appliance is not a connected namespace.
+2025-12-28 19:48:29,633 - INFO - [TUNNEL] Connecting to wss://app.samureye.com.br...
+2025-12-28 19:48:29,686 - INFO - [TUNNEL] Connected to cloud server
+2025-12-28 19:49:07,589 - INFO - [PROXY] GET http://127.0.0.1:80/
+2025-12-28 19:49:07,592 - INFO - [PROXY] Response 200 for / (2195 bytes)
+2025-12-28 19:49:07,722 - INFO - [PROXY] GET http://127.0.0.1:80/assets/index-BzBCczvz.js
+2025-12-28 19:49:07,724 - INFO - [PROXY] GET http://127.0.0.1:80/assets/index-Dq212KW_.css
+2025-12-28 19:49:07,728 - INFO - [PROXY] Response 200 for /assets/index-Dq212KW_.css (74694 bytes)
+2025-12-28 19:49:07,734 - INFO - [PROXY] Response 200 for /assets/index-BzBCczvz.js (1143719 bytes)
+2025-12-28 19:49:07,758 - INFO - [TUNNEL] Disconnected from cloud server
