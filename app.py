@@ -299,9 +299,7 @@ def proxy_gui(appliance_id, path=''):
     appliance_sid = connected_appliances[token]['sid']
     request_id = str(uuid.uuid4())
     
-    event = eventlet.event.Event()
     pending_http_requests[request_id] = {
-        'event': event,
         'response': None
     }
     
@@ -315,10 +313,12 @@ def proxy_gui(appliance_id, path=''):
         'body': request.get_data(as_text=True) if request.data else None
     }, room=appliance_sid, namespace='/appliance')
     
-    try:
-        event.wait(timeout=30)
-    except:
-        pass
+    timeout = 30
+    start_time = eventlet.greenthread.getcurrent()
+    for _ in range(timeout * 10):
+        if pending_http_requests.get(request_id, {}).get('response'):
+            break
+        eventlet.sleep(0.1)
     
     response_data = pending_http_requests.pop(request_id, {}).get('response')
     
@@ -548,7 +548,6 @@ def handle_http_response(data):
     request_id = data.get('request_id')
     if request_id and request_id in pending_http_requests:
         pending_http_requests[request_id]['response'] = data
-        pending_http_requests[request_id]['event'].set()
 
 
 @socketio.on('connect', namespace='/console')
