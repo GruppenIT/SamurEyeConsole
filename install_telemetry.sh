@@ -293,13 +293,15 @@ class TelemetryService:
                 import urllib.request
                 import urllib.error
                 import base64
+                import gzip
+                import io
                 
                 url = f"http://127.0.0.1:80{path}"
                 logger.info(f"[PROXY] {method} {url}")
                 
                 req = urllib.request.Request(url, method=method)
                 for key, value in headers.items():
-                    if key.lower() not in ['host', 'connection', 'content-length']:
+                    if key.lower() not in ['host', 'connection', 'content-length', 'accept-encoding']:
                         req.add_header(key, value)
                 
                 if body:
@@ -310,10 +312,24 @@ class TelemetryService:
                         response_body = response.read()
                         response_headers = dict(response.getheaders())
                         
+                        content_encoding = response_headers.get('Content-Encoding', '').lower()
+                        if content_encoding == 'gzip':
+                            try:
+                                response_body = gzip.decompress(response_body)
+                                del response_headers['Content-Encoding']
+                            except:
+                                pass
+                        
                         content_type = response_headers.get('Content-Type', '')
-                        if any(t in content_type for t in ['text/', 'application/json', 'application/javascript', 'application/xml']):
-                            body_data = response_body.decode('utf-8', errors='replace')
-                            is_binary = False
+                        is_text = any(t in content_type.lower() for t in ['text/', 'application/json', 'application/javascript', 'application/xml', 'application/xhtml'])
+                        
+                        if is_text:
+                            try:
+                                body_data = response_body.decode('utf-8')
+                                is_binary = False
+                            except:
+                                body_data = base64.b64encode(response_body).decode('ascii')
+                                is_binary = True
                         else:
                             body_data = base64.b64encode(response_body).decode('ascii')
                             is_binary = True
