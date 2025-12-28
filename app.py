@@ -332,7 +332,7 @@ def proxy_gui(appliance_id, path=''):
     resp_headers = response_data.get('headers', {})
     content_type = resp_headers.get('Content-Type', 'text/html')
     
-    if 'text/html' in content_type and isinstance(body, str):
+    if ('text/html' in content_type or 'text/css' in content_type) and isinstance(body, str):
         base_url = f'/gui/{appliance_id}/'
         body = body.replace('href="/', f'href="{base_url}')
         body = body.replace("href='/", f"href='{base_url}")
@@ -340,6 +340,9 @@ def proxy_gui(appliance_id, path=''):
         body = body.replace("src='/", f"src='{base_url}")
         body = body.replace('action="/', f'action="{base_url}')
         body = body.replace("action='/", f"action='{base_url}")
+        body = body.replace('url("/', f'url("{base_url}')
+        body = body.replace("url('/", f"url('{base_url}")
+        body = body.replace('url(/', f'url({base_url}')
     
     response = make_response(body, response_data.get('status', 200))
     response.headers['Content-Type'] = content_type
