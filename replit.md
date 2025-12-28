@@ -85,14 +85,25 @@ sudo bash install_telemetry.sh <TOKEN> [API_URL]
 - Generates /opt/samureye/license file
 - Establishes persistent WebSocket tunnel for remote shell
 
-## Remote Shell Feature
+## Remote Access Features
+
+### Remote Shell
 The platform provides secure remote shell access to appliances:
 
 1. Appliance telemetry service maintains a persistent WebSocket connection
-2. Admin clicks "Conectar" on appliance page to start shell session
+2. Admin clicks "Conectar Shell" on appliance page to start shell session
 3. PTY-based shell session created on appliance
 4. Terminal output streamed to xterm.js in browser
 5. Full interactive bash shell with resize support
+
+### GUI Proxy
+The platform provides HTTP proxy access to the appliance's internal web interface:
+
+1. Admin clicks "Conectar GUI" on appliance page (opens in new tab)
+2. HTTP requests are tunneled through the WebSocket connection
+3. Proxies to http://127.0.0.1:80 on the appliance
+4. HTML responses have URLs rewritten to work through the /gui/<appliance_id>/ path
+5. Binary content (images, etc.) is base64 encoded over WebSocket
 
 ### Security
 - Token-based authentication for appliance connections
@@ -141,3 +152,5 @@ Charts and data tables support multiple time periods:
 - 2024-12-23: Implemented reverse shell tunnel via WebSocket/Socket.IO for remote appliance access
 - 2024-12-26: Added period selection for charts (1h to 90 days) and 90-day data retention policy
 - 2024-12-26: Added system inventory tracking (IP, hostname, virtualization type, vCPUs, memory, disk, OS) with hourly updates
+- 2024-12-28: Added HTTP proxy via WebSocket tunnel to access appliance's internal GUI (http://127.0.0.1:80)
+- 2024-12-28: Updated appliance interface with separate "Conectar Shell" and "Conectar GUI" buttons, GUI opens in new tab
