@@ -108,31 +108,41 @@ DATA_RETENTION_DAYS = 90
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    period = request.args.get('period', '24h')
-    if period not in PERIOD_OPTIONS:
-        period = '24h'
-    
-    hours = PERIOD_OPTIONS[period]['hours']
-    since = datetime.utcnow() - timedelta(hours=hours)
-    max_points = hours * 12 + 100
-    
     contracts = Contract.query.all()
     total_appliances = Appliance.query.count()
+    
+    now = datetime.utcnow()
+    online_threshold = now - timedelta(minutes=10)
+    
     active_appliances = Appliance.query.filter(
-        Appliance.last_seen >= datetime.utcnow() - timedelta(minutes=10)
+        Appliance.last_seen >= online_threshold
     ).count()
     
-    recent_metrics = Metric.query.filter(
-        Metric.timestamp >= since
-    ).order_by(Metric.timestamp.desc()).limit(max_points).all()
+    active_contracts = Contract.query.filter(
+        Contract.start_date <= now,
+        Contract.end_date >= now
+    ).count()
+    
+    expiring_soon = Contract.query.filter(
+        Contract.end_date >= now,
+        Contract.end_date <= now + timedelta(days=30)
+    ).count()
+    
+    appliances = Appliance.query.join(Contract).order_by(
+        Appliance.last_seen.desc().nullslast()
+    ).all()
+    
+    for appliance in appliances:
+        appliance.is_online = appliance.last_seen and appliance.last_seen >= online_threshold
+        appliance.tunnel_connected = appliance.id in appliance_tunnels
     
     return render_template('dashboard.html', 
                          contracts=contracts,
                          total_appliances=total_appliances,
                          active_appliances=active_appliances,
-                         recent_metrics=list(reversed(recent_metrics)),
-                         current_period=period,
-                         period_options=PERIOD_OPTIONS)
+                         active_contracts=active_contracts,
+                         expiring_soon=expiring_soon,
+                         appliances=appliances)
 
 @app.route('/contracts')
 @login_required
