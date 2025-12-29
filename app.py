@@ -135,7 +135,7 @@ def dashboard():
     
     for appliance in appliances:
         appliance.is_online = appliance.last_seen and appliance.last_seen >= online_threshold
-        appliance.tunnel_connected = appliance.id in appliance_tunnels
+        appliance.tunnel_connected = appliance.token in connected_appliances
     
     return render_template('dashboard.html', 
                          contracts=contracts,
