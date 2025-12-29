@@ -287,7 +287,32 @@ def get_tunnel_status(id):
     })
 
 @app.route('/gui/<int:appliance_id>/')
-@app.route('/gui/<int:appliance_id>/<path:path>')
+@login_required
+def gui_wrapper(appliance_id):
+    appliance = Appliance.query.get_or_404(appliance_id)
+    token = appliance.token
+    
+    if token not in connected_appliances:
+        return Response('Appliance not connected', status=503, content_type='text/plain')
+    
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUI - {appliance.name}</title>
+    <style>
+        html, body {{ margin: 0; padding: 0; height: 100%; overflow: hidden; }}
+        iframe {{ width: 100%; height: 100%; border: none; }}
+    </style>
+</head>
+<body>
+    <iframe src="/gui/{appliance_id}/__frame/" allow="fullscreen"></iframe>
+</body>
+</html>'''
+
+@app.route('/gui/<int:appliance_id>/__frame/')
+@app.route('/gui/<int:appliance_id>/__frame/<path:path>')
 @login_required
 def proxy_gui(appliance_id, path=''):
     appliance = Appliance.query.get_or_404(appliance_id)
@@ -314,7 +339,6 @@ def proxy_gui(appliance_id, path=''):
     }, room=appliance_sid, namespace='/appliance')
     
     timeout = 30
-    start_time = eventlet.greenthread.getcurrent()
     for _ in range(timeout * 10):
         if pending_http_requests.get(request_id, {}).get('response'):
             break
@@ -332,14 +356,23 @@ def proxy_gui(appliance_id, path=''):
     resp_headers = response_data.get('headers', {})
     content_type = resp_headers.get('Content-Type', 'text/html')
     
+    base_url = f'/gui/{appliance_id}/__frame/'
+    
     if 'text/html' in content_type and isinstance(body, str):
-        base_url = f'/gui/{appliance_id}/'
+        router_fix_script = f'''<script>
+(function(){{
+    if(window.location.pathname.startsWith('/gui/{appliance_id}/__frame')){{
+        var newPath = window.location.pathname.replace('/gui/{appliance_id}/__frame', '') || '/';
+        history.replaceState({{}}, '', newPath);
+    }}
+}})();
+</script>'''
         
         if '<head>' in body:
-            body = body.replace('<head>', f'<head><base href="{base_url}">', 1)
+            body = body.replace('<head>', f'<head>{router_fix_script}<base href="{base_url}">', 1)
         elif '<head ' in body:
             import re
-            body = re.sub(r'(<head[^>]*>)', rf'\1<base href="{base_url}">', body, count=1)
+            body = re.sub(r'(<head[^>]*>)', rf'\1{router_fix_script}<base href="{base_url}">', body, count=1)
         
         body = body.replace('href="/', f'href="{base_url}')
         body = body.replace("href='/", f"href='{base_url}")
@@ -349,7 +382,6 @@ def proxy_gui(appliance_id, path=''):
         body = body.replace("action='/", f"action='{base_url}")
     
     if 'text/css' in content_type and isinstance(body, str):
-        base_url = f'/gui/{appliance_id}/'
         body = body.replace('url("/', f'url("{base_url}')
         body = body.replace("url('/", f"url('{base_url}")
         body = body.replace('url(/', f'url({base_url}')
