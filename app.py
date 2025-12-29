@@ -332,14 +332,24 @@ def proxy_gui(appliance_id, path=''):
     resp_headers = response_data.get('headers', {})
     content_type = resp_headers.get('Content-Type', 'text/html')
     
-    if ('text/html' in content_type or 'text/css' in content_type) and isinstance(body, str):
+    if 'text/html' in content_type and isinstance(body, str):
         base_url = f'/gui/{appliance_id}/'
+        
+        if '<head>' in body:
+            body = body.replace('<head>', f'<head><base href="{base_url}">', 1)
+        elif '<head ' in body:
+            import re
+            body = re.sub(r'(<head[^>]*>)', rf'\1<base href="{base_url}">', body, count=1)
+        
         body = body.replace('href="/', f'href="{base_url}')
         body = body.replace("href='/", f"href='{base_url}")
         body = body.replace('src="/', f'src="{base_url}')
         body = body.replace("src='/", f"src='{base_url}")
         body = body.replace('action="/', f'action="{base_url}')
         body = body.replace("action='/", f"action='{base_url}")
+    
+    if 'text/css' in content_type and isinstance(body, str):
+        base_url = f'/gui/{appliance_id}/'
         body = body.replace('url("/', f'url("{base_url}')
         body = body.replace("url('/", f"url('{base_url}")
         body = body.replace('url(/', f'url({base_url}')
