@@ -359,7 +359,32 @@ def proxy_gui(appliance_id, path=''):
     base_url = f'/gui/{appliance_id}/__frame/'
     
     if 'text/html' in content_type and isinstance(body, str):
-        router_fix_script = f'''<script>history.replaceState(null,'','/');</script>'''
+        router_fix_script = f'''<script>
+(function(){{
+    var prefix = '/gui/{appliance_id}/__frame';
+    var realPathname = Object.getOwnPropertyDescriptor(window.Location.prototype, 'pathname');
+    Object.defineProperty(window.location, 'pathname', {{
+        get: function() {{
+            var p = realPathname.get.call(this);
+            return p.startsWith(prefix) ? (p.slice(prefix.length) || '/') : p;
+        }}
+    }});
+    var origPushState = history.pushState;
+    var origReplaceState = history.replaceState;
+    history.pushState = function(state, title, url) {{
+        if (url && url.startsWith('/') && !url.startsWith(prefix)) {{
+            url = prefix + url;
+        }}
+        return origPushState.call(this, state, title, url);
+    }};
+    history.replaceState = function(state, title, url) {{
+        if (url && url.startsWith('/') && !url.startsWith(prefix)) {{
+            url = prefix + url;
+        }}
+        return origReplaceState.call(this, state, title, url);
+    }};
+}})();
+</script>'''
         
         if '<!DOCTYPE' in body.upper() or '<html' in body.lower():
             body = router_fix_script + body
