@@ -112,6 +112,7 @@ def dashboard():
     total_appliances = Appliance.query.count()
     
     now = datetime.utcnow()
+    today = now.date()
     online_threshold = now - timedelta(minutes=10)
     
     active_appliances = Appliance.query.filter(
@@ -119,16 +120,16 @@ def dashboard():
     ).count()
     
     active_contracts = Contract.query.filter(
-        Contract.start_date <= now,
-        Contract.end_date >= now
+        Contract.start_date <= today,
+        Contract.end_date >= today
     ).count()
     
     expiring_soon = Contract.query.filter(
-        Contract.end_date >= now,
-        Contract.end_date <= now + timedelta(days=30)
+        Contract.end_date >= today,
+        Contract.end_date <= today + timedelta(days=30)
     ).count()
     
-    appliances = Appliance.query.join(Contract).order_by(
+    appliances = Appliance.query.outerjoin(Contract).order_by(
         Appliance.last_seen.desc().nullslast()
     ).all()
     
