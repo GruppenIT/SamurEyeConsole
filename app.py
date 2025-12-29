@@ -359,20 +359,16 @@ def proxy_gui(appliance_id, path=''):
     base_url = f'/gui/{appliance_id}/__frame/'
     
     if 'text/html' in content_type and isinstance(body, str):
-        router_fix_script = f'''<script>
-(function(){{
-    if(window.location.pathname.startsWith('/gui/{appliance_id}/__frame')){{
-        var newPath = window.location.pathname.replace('/gui/{appliance_id}/__frame', '') || '/';
-        history.replaceState({{}}, '', newPath);
-    }}
-}})();
-</script>'''
+        router_fix_script = f'''<script>history.replaceState(null,'','/');</script>'''
+        
+        if '<!DOCTYPE' in body.upper() or '<html' in body.lower():
+            body = router_fix_script + body
         
         if '<head>' in body:
-            body = body.replace('<head>', f'<head>{router_fix_script}<base href="{base_url}">', 1)
+            body = body.replace('<head>', f'<head><base href="{base_url}">', 1)
         elif '<head ' in body:
             import re
-            body = re.sub(r'(<head[^>]*>)', rf'\1{router_fix_script}<base href="{base_url}">', body, count=1)
+            body = re.sub(r'(<head[^>]*>)', rf'\1<base href="{base_url}">', body, count=1)
         
         body = body.replace('href="/', f'href="{base_url}')
         body = body.replace("href='/", f"href='{base_url}")
