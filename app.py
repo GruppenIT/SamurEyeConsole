@@ -1,10 +1,7 @@
 import os
-import uuid
-import base64
-import eventlet
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from models import db, User, Contract, Appliance, Metric, LoginLog, ThreatMetadata
@@ -19,11 +16,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', ping_timeout=120, ping_interval=25, max_http_buffer_size=10*1024*1024)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', ping_timeout=120, ping_interval=25)
 
 connected_appliances = {}
 shell_sessions = {}
-pending_http_requests = {}
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -286,136 +282,6 @@ def get_tunnel_status(id):
         'appliance_id': id
     })
 
-@app.route('/gui/<int:appliance_id>/')
-@login_required
-def gui_wrapper(appliance_id):
-    appliance = Appliance.query.get_or_404(appliance_id)
-    token = appliance.token
-    
-    if token not in connected_appliances:
-        return Response('Appliance not connected', status=503, content_type='text/plain')
-    
-    return f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GUI - {appliance.name}</title>
-    <style>
-        html, body {{ margin: 0; padding: 0; height: 100%; overflow: hidden; }}
-        iframe {{ width: 100%; height: 100%; border: none; }}
-    </style>
-</head>
-<body>
-    <iframe src="/gui/{appliance_id}/__frame/" allow="fullscreen"></iframe>
-</body>
-</html>'''
-
-@app.route('/gui/<int:appliance_id>/__frame/')
-@app.route('/gui/<int:appliance_id>/__frame/<path:path>')
-@login_required
-def proxy_gui(appliance_id, path=''):
-    appliance = Appliance.query.get_or_404(appliance_id)
-    token = appliance.token
-    
-    if token not in connected_appliances:
-        return Response('Appliance not connected', status=503, content_type='text/plain')
-    
-    appliance_sid = connected_appliances[token]['sid']
-    request_id = str(uuid.uuid4())
-    
-    pending_http_requests[request_id] = {
-        'response': None
-    }
-    
-    headers = {k: v for k, v in request.headers if k.lower() not in ['host', 'connection']}
-    
-    socketio.emit('http_request', {
-        'request_id': request_id,
-        'method': request.method,
-        'path': '/' + path + ('?' + request.query_string.decode() if request.query_string else ''),
-        'headers': headers,
-        'body': request.get_data(as_text=True) if request.data else None
-    }, room=appliance_sid, namespace='/appliance')
-    
-    timeout = 30
-    for _ in range(timeout * 10):
-        if pending_http_requests.get(request_id, {}).get('response'):
-            break
-        eventlet.sleep(0.1)
-    
-    response_data = pending_http_requests.pop(request_id, {}).get('response')
-    
-    if not response_data:
-        return Response('Gateway Timeout', status=504, content_type='text/plain')
-    
-    body = response_data.get('body', '')
-    if response_data.get('is_binary'):
-        body = base64.b64decode(body)
-    
-    resp_headers = response_data.get('headers', {})
-    content_type = resp_headers.get('Content-Type', 'text/html')
-    
-    base_url = f'/gui/{appliance_id}/__frame/'
-    
-    if 'text/html' in content_type and isinstance(body, str):
-        router_fix_script = f'''<script>
-(function(){{
-    var prefix = '/gui/{appliance_id}/__frame';
-    var realPathname = Object.getOwnPropertyDescriptor(window.Location.prototype, 'pathname');
-    Object.defineProperty(window.location, 'pathname', {{
-        get: function() {{
-            var p = realPathname.get.call(this);
-            return p.startsWith(prefix) ? (p.slice(prefix.length) || '/') : p;
-        }}
-    }});
-    var origPushState = history.pushState;
-    var origReplaceState = history.replaceState;
-    history.pushState = function(state, title, url) {{
-        if (url && url.startsWith('/') && !url.startsWith(prefix)) {{
-            url = prefix + url;
-        }}
-        return origPushState.call(this, state, title, url);
-    }};
-    history.replaceState = function(state, title, url) {{
-        if (url && url.startsWith('/') && !url.startsWith(prefix)) {{
-            url = prefix + url;
-        }}
-        return origReplaceState.call(this, state, title, url);
-    }};
-}})();
-</script>'''
-        
-        if '<!DOCTYPE' in body.upper() or '<html' in body.lower():
-            body = router_fix_script + body
-        
-        if '<head>' in body:
-            body = body.replace('<head>', f'<head><base href="{base_url}">', 1)
-        elif '<head ' in body:
-            import re
-            body = re.sub(r'(<head[^>]*>)', rf'\1<base href="{base_url}">', body, count=1)
-        
-        body = body.replace('href="/', f'href="{base_url}')
-        body = body.replace("href='/", f"href='{base_url}")
-        body = body.replace('src="/', f'src="{base_url}')
-        body = body.replace("src='/", f"src='{base_url}")
-        body = body.replace('action="/', f'action="{base_url}')
-        body = body.replace("action='/", f"action='{base_url}")
-    
-    if 'text/css' in content_type and isinstance(body, str):
-        body = body.replace('url("/', f'url("{base_url}')
-        body = body.replace("url('/", f"url('{base_url}")
-        body = body.replace('url(/', f'url({base_url}')
-    
-    response = make_response(body, response_data.get('status', 200))
-    response.headers['Content-Type'] = content_type
-    
-    for key, value in resp_headers.items():
-        if key.lower() not in ['content-length', 'transfer-encoding', 'connection', 'content-encoding']:
-            response.headers[key] = value
-    
-    return response
-
 def require_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -605,12 +471,6 @@ def handle_shell_closed(data):
             socketio.emit('shell_closed', {'reason': data.get('reason', 'Shell closed')}, 
                          room=console_sid, namespace='/console')
         del shell_sessions[token]
-
-@socketio.on('http_response', namespace='/appliance')
-def handle_http_response(data):
-    request_id = data.get('request_id')
-    if request_id and request_id in pending_http_requests:
-        pending_http_requests[request_id]['response'] = data
 
 
 @socketio.on('connect', namespace='/console')

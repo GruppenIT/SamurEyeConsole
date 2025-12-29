@@ -197,13 +197,13 @@
 
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-terminal me-2"></i>Acesso Remoto</span>
+        <span><i class="bi bi-terminal me-2"></i>Terminal Remoto</span>
         <div>
-            <button id="btn-connect-shell" class="btn btn-success btn-sm" onclick="connectShell()" {% if not is_tunnel_connected %}disabled{% endif %}>
-                <i class="bi bi-terminal"></i> Conectar Shell
+            <button id="btn-connect-shell" class="btn btn-success btn-sm" onclick="connectShell()">
+                <i class="bi bi-play-fill"></i> Conectar
             </button>
             <button id="btn-disconnect-shell" class="btn btn-danger btn-sm" onclick="disconnectShell()" style="display: none;">
-                <i class="bi bi-stop-fill"></i> Desconectar Shell
+                <i class="bi bi-stop-fill"></i> Desconectar
             </button>
         </div>
     </div>
@@ -215,7 +215,7 @@
             <i class="bi bi-terminal" style="font-size: 3rem; color: #6c757d;"></i>
             <p class="text-muted mt-3" id="terminal-placeholder-text">
                 {% if is_tunnel_connected %}
-                    Clique em <strong>Conectar Shell</strong> para abrir um terminal de linha de comando.
+                    Clique em "Conectar" para abrir uma sessao de terminal com o appliance.
                 {% else %}
                     O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.
                 {% endif %}
@@ -490,22 +490,22 @@ function updateTunnelStatus() {
             const statusText = document.getElementById('tunnel-status-text');
             const statusDot = statusBadge.querySelector('.terminal-status-dot');
             const placeholderText = document.getElementById('terminal-placeholder-text');
-            const btnConnectShell = document.getElementById('btn-connect-shell');
+            const btnConnect = document.getElementById('btn-connect-shell');
             
             if (data.connected) {
                 statusBadge.classList.remove('tunnel-disconnected');
                 statusBadge.classList.add('tunnel-connected');
                 statusDot.classList.add('connected');
                 statusText.textContent = 'Tunel Conectado';
-                placeholderText.innerHTML = 'Clique em <strong>Conectar Shell</strong> para abrir um terminal de linha de comando.';
-                btnConnectShell.disabled = false;
+                placeholderText.textContent = 'Clique em "Conectar" para abrir uma sessao de terminal com o appliance.';
+                btnConnect.disabled = false;
             } else {
                 statusBadge.classList.remove('tunnel-connected');
                 statusBadge.classList.add('tunnel-disconnected');
                 statusDot.classList.remove('connected');
                 statusText.textContent = 'Tunel Desconectado';
                 placeholderText.textContent = 'O appliance nao esta conectado ao tunel. Aguarde a conexao ou verifique o servico de telemetria.';
-                btnConnectShell.disabled = true;
+                btnConnect.disabled = true;
             }
         })
         .catch(err => console.error('Error checking tunnel status:', err));
